@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: pechcompta-backend
+    runtime: docker
+    repo: https://github.com/VOTRE-COMPTE/VOTRE-DEPOT
+    branch: main
+    rootDir: backend
+    plan: free
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_KEY
+        generateValue: true
+      - key: APP_URL
+        value: https://pechcompta-backend.onrender.com
+      - key: FRONTEND_URL
+        value: https://pechcompta.vercel.app
+      - key: DB_CONNECTION
+        value: pgsql
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        value: "5432"
+      - key: DB_DATABASE
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: SESSION_DRIVER
+        value: database
+      - key: CACHE_STORE
+        value: file
+      - key: QUEUE_CONNECTION
+        value: sync
+      - key: LOG_LEVEL
+        value: warning

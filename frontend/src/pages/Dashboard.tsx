@@ -1,0 +1,431 @@
+import { useEffect, useMemo, useState } from 'react'
+import type { FormEvent } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  Fish,
+  Scale,
+  Coins,
+  IceCream,
+  Trash2,
+  Plus,
+  Loader2,
+  FileSpreadsheet,
+  FileText,
+  ShipWheel,
+} from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import api, { API_BASE_URL } from '@/lib/api'
+import { queryKeys, useStats, useTodayAchats, useTypesPoisson, usePecheurs, useDetaillants } from '@/hooks/useApiHooks'
+import { formatMontantCourt, formatMontant, formatPoids, formatDateFr, todayISO } from '@/lib/format'
+import type { SourceAchatType } from '@/lib/types'
+
+export default function Dashboard() {
+  return (
+    <div className="space-y-6">
+      <Header />
+      <Kpis />
+      <QuickAddForm />
+      <TodayList />
+    </div>
+  )
+}
+
+function Header() {
+  const today = new Date()
+  const [from, setFrom] = useState(todayISO())
+  const [to, setTo] = useState(todayISO())
+
+  async function downloadExport(format: 'excel' | 'pdf') {
+    const token = localStorage.getItem('peche_token')
+    const response = await fetch(`${API_BASE_URL}/export/${format}?from=${from}&to=${to}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!response.ok) {
+      if (response.status === 401) {
+        localStorage.removeItem('peche_token')
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login'
+        }
+      }
+      return
+    }
+    const blob = await response.blob()
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `rapport-${format}-${from}-${to}.${format === 'excel' ? 'xlsx' : 'pdf'}`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Journée en cours</h1>
+        <p className="text-slate-500 dark:text-slate-400 mt-1 capitalize">{formatDateFr(today)}</p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 shadow-sm">
+          <label className="text-xs font-medium text-slate-500 dark:text-slate-400" htmlFor="from-date">
+            Du
+          </label>
+          <input
+            id="from-date"
+            type="date"
+            value={from}
+            onChange={(event) => setFrom(event.target.value)}
+            className="bg-transparent text-sm text-slate-800 dark:text-slate-200 outline-none"
+          />
+          <label className="text-xs font-medium text-slate-500 dark:text-slate-400" htmlFor="to-date">
+            au
+          </label>
+          <input
+            id="to-date"
+            type="date"
+            value={to}
+            min={from}
+            onChange={(event) => setTo(event.target.value)}
+            className="bg-transparent text-sm text-slate-800 dark:text-slate-200 outline-none"
+          />
+        </div>
+        <Button variant="outline" size="sm" onClick={() => downloadExport('excel')}>
+          <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+          Excel
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => downloadExport('pdf')}>
+          <FileText className="h-4 w-4 text-red-600" />
+          PDF
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function Kpis() {
+  const { data: stats, isLoading } = useStats()
+
+  const kpis = [
+    {
+      label: 'Poids total',
+      value: stats ? formatPoids(stats.today.achats.poids_total) : '—',
+      icon: <Scale className="h-5 w-5 text-sky-600 dark:text-sky-400" />,
+      detail: `${stats?.today.achats.nb_lignes ?? 0} ligne(s) · ${stats?.today.achats.nb_sources ?? 0} source(s)`,
+    },
+    {
+      label: 'Achats',
+      value: stats ? formatMontantCourt(stats.today.achats.montant_total) : '—',
+      icon: <Coins className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />,
+      detail: 'Montant total payé',
+    },
+    {
+      label: 'Charges',
+      value: stats ? formatMontantCourt(stats.today.charges.total) : '—',
+      icon: <IceCream className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />,
+      detail: 'Glace + transport + libres',
+    },
+    {
+      label: 'Dépenses totales',
+      value: stats ? formatMontantCourt(stats.today.total_depenses) : '—',
+      icon: <Fish className="h-5 w-5 text-slate-600 dark:text-slate-400" />,
+      detail: 'Achats + charges',
+    },
+  ]
+
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {kpis.map((kpi) => (
+        <div
+          key={kpi.label}
+          className={`rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm ${
+            isLoading ? 'opacity-60 animate-pulse' : ''
+          }`}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{kpi.label}</span>
+            {kpi.icon}
+          </div>
+          <p className="text-xl font-bold text-slate-900 dark:text-white">{kpi.value}</p>
+          <p className="text-xs text-slate-400 mt-1">{kpi.detail}</p>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function QuickAddForm() {
+  const queryClient = useQueryClient()
+  const { data: types } = useTypesPoisson()
+  const { data: pecheurs } = usePecheurs()
+  const { data: detaillants } = useDetaillants()
+
+  const [type, setType] = useState<SourceAchatType>('pirogue')
+  const [nom, setNom] = useState('')
+  const [typePoissonId, setTypePoissonId] = useState('')
+  const [poidsKg, setPoidsKg] = useState('')
+  const [prix, setPrix] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!typePoissonId) {
+      const defaut = (types ?? []).find((typePoisson) => typePoisson.is_default)
+      if (defaut) {
+        setTypePoissonId(String(defaut.id))
+      }
+    }
+  }, [types, typePoissonId])
+
+  const noms = useMemo(
+    () => (type === 'pirogue' ? (pecheurs ?? []).map((p) => p.nom) : (detaillants ?? []).map((d) => d.nom)),
+    [type, pecheurs, detaillants],
+  )
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const response = await api.post('/achats', {
+        type,
+        nom,
+        type_poisson_id: typePoissonId,
+        poids_kg: poidsKg,
+        prix,
+      })
+      return response.data
+    },
+    onSuccess: () => {
+      setNom('')
+      setPoidsKg('')
+      setPrix('')
+      setError(null)
+      queryClient.invalidateQueries({ queryKey: queryKeys.achatsToday })
+      queryClient.invalidateQueries({ queryKey: queryKeys.stats })
+      queryClient.invalidateQueries({ queryKey: queryKeys.referentiels.pecheurs })
+      queryClient.invalidateQueries({ queryKey: queryKeys.referentiels.detaillants })
+    },
+    onError: () => {
+      setError('Impossible d’enregistrer l’achat. Vérifiez les champs.')
+    },
+  })
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!nom.trim() || !typePoissonId || !poidsKg || !prix) {
+      setError('Tous les champs sont requis.')
+      return
+    }
+    mutation.mutate()
+  }
+
+  return (
+    <section className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+      <div className="p-4 border-b border-slate-100 dark:border-slate-800">
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Ajouter un achat</h2>
+      </div>
+      <form onSubmit={handleSubmit} className="p-4 space-y-3">
+        <div className="grid grid-cols-2 gap-2 rounded-lg bg-slate-100 dark:bg-slate-800 p-1">
+          {(
+            [
+              { value: 'pirogue', label: 'Pêcheur (Pirogue)', icon: <ShipWheel className="h-4 w-4" /> },
+              { value: 'detaillant', label: 'Détaillant', icon: <Fish className="h-4 w-4" /> },
+            ] as { value: SourceAchatType; label: string; icon: React.ReactNode }[]
+          ).map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => {
+                setType(option.value)
+                setNom('')
+              }}
+              className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                type === option.value
+                  ? 'bg-white dark:bg-slate-900 text-sky-700 dark:text-sky-300 shadow'
+                  : 'text-slate-600 dark:text-slate-400'
+              }`}
+            >
+              {option.icon}
+              {option.label}
+            </button>
+          ))}
+        </div>
+
+        <div>
+          <label htmlFor="nom" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+            Nom du {type === 'pirogue' ? 'pêcheur' : 'détaillant'}
+          </label>
+          <input
+            id="nom"
+            list="sources-noms"
+            value={nom}
+            onChange={(event) => setNom(event.target.value)}
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2.5 text-base outline-none focus:ring-2 focus:ring-sky-500"
+            placeholder={type === 'pirogue' ? 'Ex : Moussa Diop' : 'Ex : Awa Ndiaye'}
+            autoComplete="off"
+          />
+          <datalist id="sources-noms">
+            {noms.map((nomOption) => (
+              <option key={nomOption} value={nomOption} />
+            ))}
+          </datalist>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          <div className="col-span-1">
+            <label htmlFor="type-poisson" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+              Poisson
+            </label>
+            <select
+              id="type-poisson"
+              value={typePoissonId}
+              onChange={(event) => setTypePoissonId(event.target.value)}
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2.5 text-base outline-none focus:ring-2 focus:ring-sky-500"
+            >
+              <option value="">Choisir…</option>
+              {(types ?? []).map((typePoisson) => (
+                <option key={typePoisson.id} value={typePoisson.id}>
+                  {typePoisson.nom}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="poids" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+              Poids (kg)
+            </label>
+            <input
+              id="poids"
+              type="number"
+              inputMode="decimal"
+              step="0.1"
+              min="0"
+              value={poidsKg}
+              onChange={(event) => setPoidsKg(event.target.value)}
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2.5 text-base outline-none focus:ring-2 focus:ring-sky-500"
+              placeholder="0"
+            />
+          </div>
+          <div>
+            <label htmlFor="prix" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+              Prix (FCFA)
+            </label>
+            <input
+              id="prix"
+              type="number"
+              inputMode="numeric"
+              min="0"
+              value={prix}
+              onChange={(event) => setPrix(event.target.value)}
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2.5 text-base outline-none focus:ring-2 focus:ring-sky-500"
+              placeholder="0"
+            />
+          </div>
+        </div>
+
+        {error !== null && (
+          <p className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950 rounded-lg px-3 py-2">{error}</p>
+        )}
+
+        <Button type="submit" disabled={mutation.isPending} className="w-full h-12 text-base font-semibold">
+          {mutation.isPending ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : (
+            <Plus className="h-5 w-5" />
+          )}
+          {mutation.isPending ? 'Enregistrement…' : 'Enregistrer l’achat'}
+        </Button>
+      </form>
+    </section>
+  )
+}
+
+function TodayList() {
+  const queryClient = useQueryClient()
+  const { data: sources, isLoading } = useTodayAchats()
+
+  const deleteMutation = useMutation({
+    mutationFn: async (ligneId: number) => {
+      await api.delete(`/achats/lignes/${ligneId}`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.achatsToday })
+      queryClient.invalidateQueries({ queryKey: queryKeys.stats })
+    },
+  })
+
+  if (isLoading) {
+    return (
+      <section className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm p-6 text-center text-slate-400">
+        Chargement des achats…
+      </section>
+    )
+  }
+
+  if (!sources || sources.length === 0) {
+    return (
+      <section className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-8 text-center">
+        <Fish className="h-10 w-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+        <p className="text-slate-500 dark:text-slate-400">Aucun achat aujourd’hui</p>
+        <p className="text-sm text-slate-400 mt-1">Utilisez le formulaire ci-dessus pour commencer.</p>
+      </section>
+    )
+  }
+
+  return (
+    <section className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
+      <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Achats du jour</h2>
+        <span className="text-xs text-slate-400">{sources.length} source(s)</span>
+      </div>
+      <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+        {sources.map((source) => {
+          const nomSource = source.type === 'pirogue' ? source.pecheur?.nom : source.detaillant?.nom
+          return (
+            <li key={source.id} className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="h-8 w-8 rounded-lg bg-sky-100 dark:bg-sky-900/40 flex items-center justify-center">
+                    {source.type === 'pirogue' ? (
+                      <ShipWheel className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+                    ) : (
+                      <Fish className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+                    )}
+                  </span>
+                  <div>
+                    <p className="font-medium text-slate-900 dark:text-white text-sm">{nomSource ?? '—'}</p>
+                    <p className="text-xs text-slate-400">
+                      {source.type === 'pirogue' ? 'Pêcheur' : 'Détaillant'} ·{' '}
+                      {source.lignes_achats?.length ?? 0} ligne(s)
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <ul className="space-y-1.5">
+                {(source.lignes_achats ?? []).map((ligne) => (
+                  <li
+                    key={ligne.id}
+                    className="flex items-center justify-between rounded-lg bg-slate-50 dark:bg-slate-800/50 px-3 py-2"
+                  >
+                    <div>
+                      <p className="text-sm text-slate-800 dark:text-slate-200">{ligne.type_poisson?.nom ?? '—'}</p>
+                      <p className="text-xs text-slate-400">{formatPoids(ligne.poids_kg)}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-slate-900 dark:text-white">
+                        {formatMontant(ligne.prix)}
+                      </span>
+                      <button
+                        onClick={() => deleteMutation.mutate(ligne.id)}
+                        disabled={deleteMutation.isPending}
+                        className="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
+                        aria-label="Supprimer la ligne"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </li>
+          )
+        })}
+      </ul>
+    </section>
+  )
+}
