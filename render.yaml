@@ -16,7 +16,7 @@ services:
       - key: APP_URL
         value: https://pechcompta-backend.onrender.com
       - key: FRONTEND_URL
-        value: https://pechcompta.vercel.app
+        value: https://pech-compta.vercel.app
       - key: DB_CONNECTION
         value: pgsql
       - key: DB_HOST
