@@ -29,19 +29,22 @@ echo "============================================"
 read -rp "Continuer ? (y/N) " CONFIRM
 [ "${CONFIRM:-n}" = "y" ] || { echo "Annulé."; exit 0; }
 
-# ── 1. Dump de Neon via le conteneur db ──
+# ── 1. Dump de Neon via un conteneur postgres jetable ──
 echo ""
 echo "[1/4] Dump de Neon..."
-docker compose exec -T db env PGPASSWORD="$NEON_PASS" pg_dump \
+# Neon tourne en Postgres 18 : on dê une 18 pour dumper (compat asc/desc)
+docker run --rm \
+  -e PGPASSWORD="$NEON_PASS" \
+  postgres:18 pg_dump \
   -h "$NEON_HOST" -p "$NEON_PORT" -U "$NEON_USER" -d "$NEON_DB" \
   --no-owner --no-privileges --clean --if-exists \
-  -f /tmp/neon_dump.sql 2>&1 | grep -iv "^password" || true
+  -f /tmp/neon_dump.sql 2>&1
 # Échec réel du dump ?
-if ! docker compose exec -T db test -s /tmp/neon_dump.sql >/dev/null 2>&1; then
+if [ ! -s /tmp/neon_dump.sql ]; then
   echo "ERREUR : dump Neon vide/absent — le pg_dump a échoué."
   exit 1
 fi
-echo "   Dump OK."
+echo "   Dump OK ($(wc -c < /tmp/neon_dump.sql) octets)."
 
 # ── 2. Séquences MAX (avant écrasement) ──
 echo "[2/4] Sauvegarde des valeurs max des séquences..."
