@@ -57,6 +57,65 @@ class CycleApiTest extends TestCase
             ->assertJsonPath('date_fin', now()->toDateString());
     }
 
+    public function test_update_cycle_updates_dates_and_frais_route(): void
+    {
+        $cycle = CycleCamion::factory()->create([
+            'date_debut' => now()->subDays(5)->toDateString(),
+            'date_fin' => null,
+            'statut' => 'ouvert',
+            'frais_route' => 20000,
+        ]);
+
+        $this->putJson('/api/cycles/'.$cycle->id, [
+            'date_debut' => now()->subDays(4)->toDateString(),
+            'date_fin' => now()->toDateString(),
+            'frais_route' => 30000,
+        ], $this->authHeaders())
+            ->assertOk()
+            ->assertJsonPath('date_debut', now()->subDays(4)->toDateString())
+            ->assertJsonPath('date_fin', now()->toDateString())
+            ->assertJsonPath('frais_route', 30000);
+
+        $this->assertDatabaseHas('cycle_camions', [
+            'id' => $cycle->id,
+            'statut' => 'cloture',
+        ]);
+    }
+
+    public function test_update_cycle_replaces_frais_libres(): void
+    {
+        $cycle = CycleCamion::factory()->create();
+        $cycle->fraisLibres()->create(['libelle' => 'Douane', 'montant' => 10000]);
+
+        $this->putJson('/api/cycles/'.$cycle->id, [
+            'date_debut' => now()->toDateString(),
+            'frais_libres' => [
+                ['libelle' => 'Péage', 'montant' => 5000],
+            ],
+        ], $this->authHeaders())
+            ->assertOk()
+            ->assertJsonPath('frais_libres.0.libelle', 'Péage')
+            ->assertJsonPath('frais_libres.0.montant', 5000);
+
+        $this->assertDatabaseHas('cycle_frais_libres', [
+            'cycle_camion_id' => $cycle->id,
+            'libelle' => 'Péage',
+            'montant' => 5000,
+        ]);
+        $this->assertDatabaseMissing('cycle_frais_libres', ['libelle' => 'Douane']);
+    }
+
+    public function test_destroy_cycle_deletes_frais_libres(): void
+    {
+        $cycle = CycleCamion::factory()->create();
+        $cycle->fraisLibres()->create(['libelle' => 'Douane', 'montant' => 10000]);
+
+        $this->deleteJson('/api/cycles/'.$cycle->id, [], $this->authHeaders())->assertNoContent();
+
+        $this->assertDatabaseMissing('cycle_camions', ['id' => $cycle->id]);
+        $this->assertDatabaseMissing('cycle_frais_libres', ['cycle_camion_id' => $cycle->id]);
+    }
+
     public function test_cycle_details_compute_correct_totals(): void
     {
         $cycle = CycleCamion::factory()->create([

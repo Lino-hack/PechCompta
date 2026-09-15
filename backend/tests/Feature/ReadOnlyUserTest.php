@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\CycleCamion;
 use App\Models\LigneAchat;
 use App\Models\TypePoisson;
 use App\Models\User;
@@ -97,6 +98,23 @@ class ReadOnlyUserTest extends TestCase
             'date_debut' => now()->toDateString(),
             'frais_route' => 0,
         ], $this->authHeaders())->assertForbidden();
+    }
+
+    public function test_viewer_cannot_update_cycle(): void
+    {
+        $cycle = CycleCamion::factory()->create();
+
+        $this->putJson('/api/cycles/'.$cycle->id, [
+            'date_debut' => now()->toDateString(),
+            'frais_route' => 0,
+        ], $this->authHeaders())->assertForbidden();
+    }
+
+    public function test_viewer_cannot_delete_cycle(): void
+    {
+        $cycle = CycleCamion::factory()->create();
+
+        $this->deleteJson('/api/cycles/'.$cycle->id, [], $this->authHeaders())->assertForbidden();
     }
 
     public function test_viewer_cannot_update_parametres(): void

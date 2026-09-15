@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Truck, Plus, Loader2, ChevronDown, ChevronUp, Lock, FileSpreadsheet, FileText, Trash2 } from 'lucide-react'
+import { Truck, Plus, Loader2, ChevronDown, ChevronUp, Lock, FileSpreadsheet, FileText, Trash2, Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import api from '@/lib/api'
 import { downloadExport } from '@/lib/export'
@@ -174,6 +174,93 @@ function NewCycleButton() {
   )
 }
 
+function EditCycleForm({ cycle, onDone }: { cycle: CycleCamion; onDone: () => void }) {
+  const queryClient = useQueryClient()
+  const [dateDebut, setDateDebut] = useState(cycle.date_debut)
+  const [dateFin, setDateFin] = useState(cycle.date_fin ?? '')
+  const [fraisRoute, setFraisRoute] = useState(cycle.frais_route?.toString() ?? '')
+  const [error, setError] = useState<string | null>(null)
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const response = await api.put(`/cycles/${cycle.id}`, {
+        date_debut: dateDebut,
+        date_fin: dateFin || null,
+        frais_route: fraisRoute || 0,
+      })
+      return response.data
+    },
+    onSuccess: () => {
+      onDone()
+      setError(null)
+      queryClient.invalidateQueries({ queryKey: queryKeys.cycles })
+    },
+    onError: () => setError('Impossible de modifier le cycle.'),
+  })
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    mutation.mutate()
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-4 space-y-3">
+      <p className="text-sm font-semibold text-slate-900 dark:text-white">Modifier le cycle</p>
+      <div>
+        <label htmlFor="edit-date-debut" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+          Date de début
+        </label>
+        <input
+          id="edit-date-debut"
+          type="date"
+          value={dateDebut}
+          max={dateFin || undefined}
+          onChange={(event) => setDateDebut(event.target.value)}
+          className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-sky-500"
+        />
+      </div>
+      <div>
+        <label htmlFor="edit-date-fin" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+          Date de fin (optionnelle)
+        </label>
+        <input
+          id="edit-date-fin"
+          type="date"
+          value={dateFin}
+          min={dateDebut}
+          onChange={(event) => setDateFin(event.target.value)}
+          className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-sky-500"
+        />
+      </div>
+      <div>
+        <label htmlFor="edit-frais-route" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+          Frais de route (FCFA)
+        </label>
+        <input
+          id="edit-frais-route"
+          type="number"
+          inputMode="numeric"
+          min="0"
+          value={fraisRoute}
+          onChange={(event) => setFraisRoute(event.target.value)}
+          className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-sky-500"
+          placeholder="0"
+        />
+      </div>
+      {error !== null && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+      <div className="flex gap-2">
+        <Button type="submit" disabled={mutation.isPending} className="flex-1">
+          {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />}
+          Enregistrer
+        </Button>
+        <Button type="button" variant="outline" onClick={onDone}>
+          Annuler
+        </Button>
+      </div>
+    </form>
+  )
+}
+
 function CycleDetail({ cycle }: { cycle: CycleCamion }) {
   const { data: details, isLoading } = useCycleDetails(cycle.id)
   const queryClient = useQueryClient()
@@ -182,6 +269,18 @@ function CycleDetail({ cycle }: { cycle: CycleCamion }) {
   const [libelle, setLibelle] = useState('')
   const [montant, setMontant] = useState('')
   const [fraisError, setFraisError] = useState<string | null>(null)
+  const [editing, setEditing] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      await api.delete(`/cycles/${cycle.id}`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.cycles })
+    },
+    onError: () => setDeleteError('Impossible de supprimer le cycle.'),
+  })
 
   const closeMutation = useMutation({
     mutationFn: async () => {
@@ -248,6 +347,8 @@ function CycleDetail({ cycle }: { cycle: CycleCamion }) {
 
   return (
     <div className="p-4 border-t border-slate-100 dark:border-slate-800 space-y-4">
+      {editing ? <EditCycleForm cycle={cycle} onDone={() => setEditing(false)} /> : null}
+
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <div className="rounded-lg bg-slate-50 dark:bg-slate-800/50 p-3">
           <p className="text-xs text-slate-400">Achats</p>
@@ -362,7 +463,25 @@ function CycleDetail({ cycle }: { cycle: CycleCamion }) {
             Clôturer le cycle
           </Button>
         )}
+        {canEdit && (
+          <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+            <Pencil className="h-4 w-4" />
+            Modifier
+          </Button>
+        )}
+        {canEdit && (
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={() => deleteMutation.mutate()}
+            disabled={deleteMutation.isPending}
+          >
+            {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            Supprimer
+          </Button>
+        )}
       </div>
+      {deleteError !== null && <p className="text-xs text-red-600 dark:text-red-400">{deleteError}</p>}
     </div>
   )
 }

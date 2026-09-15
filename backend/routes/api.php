@@ -41,6 +41,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/charges/today', [ChargeController::class, 'updateToday']);
 
         Route::post('/cycles', [CycleController::class, 'store']);
+        Route::put('/cycles/{id}', [CycleController::class, 'update']);
+        Route::delete('/cycles/{id}', [CycleController::class, 'destroy']);
         Route::post('/cycles/{id}/close', [CycleController::class, 'close']);
         Route::post('/cycles/{id}/frais-libres', [CycleController::class, 'addFraisLibre']);
         Route::delete('/cycles/{id}/frais-libres/{fraisId}', [CycleController::class, 'destroyFraisLibre']);

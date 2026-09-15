@@ -55,6 +55,46 @@ class CycleController extends Controller
         return response()->json($cycle->load('fraisLibres'), 201);
     }
 
+    public function update(Request $request, int $id)
+    {
+        $cycle = CycleCamion::findOrFail($id);
+
+        $validated = $request->validate([
+            'date_debut' => 'required|date',
+            'date_fin' => 'nullable|date|after_or_equal:date_debut',
+            'frais_route' => 'numeric|min:0',
+            'frais_libres' => 'nullable|array',
+            'frais_libres.*.libelle' => 'required|string',
+            'frais_libres.*.montant' => 'required|numeric|min:0',
+        ]);
+
+        $cycle->update([
+            'date_debut' => $validated['date_debut'],
+            'date_fin' => $validated['date_fin'] ?? null,
+            'frais_route' => $validated['frais_route'] ?? $cycle->frais_route,
+        ]);
+
+        if (array_key_exists('frais_libres', $validated)) {
+            $cycle->fraisLibres()->delete();
+            $this->syncFraisLibres($cycle, $validated['frais_libres']);
+        }
+
+        if ($cycle->date_fin !== null && $cycle->statut === 'ouvert') {
+            $cycle->statut = 'cloture';
+            $cycle->save();
+        }
+
+        return response()->json($cycle->load('fraisLibres'));
+    }
+
+    public function destroy(int $id)
+    {
+        $cycle = CycleCamion::findOrFail($id);
+        $cycle->delete();
+
+        return response()->json(null, 204);
+    }
+
     public function addFraisLibre(Request $request, int $id)
     {
         $cycle = CycleCamion::findOrFail($id);
