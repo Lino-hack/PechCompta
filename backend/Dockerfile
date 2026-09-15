@@ -3,9 +3,9 @@ FROM php:8.5-apache
 RUN a2enmod rewrite headers
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libpq-dev libzip-dev libfreetype-dev libjpeg62-turbo-dev libpng-dev unzip git \
+    && apt-get install -y --no-install-recommends libpq-dev libzip-dev zlib1g-dev libfreetype-dev libjpeg62-turbo-dev libpng-dev unzip git \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install gd pdo_pgsql \
+    && docker-php-ext-install gd pdo_pgsql zip \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
