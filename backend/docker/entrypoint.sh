@@ -10,5 +10,6 @@ php artisan route:cache || true
 php artisan view:cache || true
 
 php artisan migrate --force
+php artisan db:seed --force
 
 exec "$@"
