@@ -35,16 +35,12 @@ echo "============================================"
 
 # ── 1. Docker + Compose ──
 if ! command -v docker &>/dev/null; then
-  echo "[1/7] Installation de Docker..."
+  echo "[1/7] Installation de Docker (script officiel get.docker.com)..."
   $SUDO apt-get update -qq
   $SUDO apt-get install -y -qq ca-certificates curl gnupg openssl git
-  $SUDO install -m 0755 -d /etc/apt/keyrings
-  curl -fsSL https://download.docker.com/linux/$(. /etc/os-release && echo "$ID")/gpg | $SUDO gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-  $SUDO chmod a+r /etc/apt/keyrings/docker.gpg
-  . /etc/os-release
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/$ID $VERSION_CODENAME stable" | $SUDO tee /etc/apt/sources.list.d/docker.list >/dev/null
-  $SUDO apt-get update -qq
-  $SUDO apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-compose-plugin
+  curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
+  $SUDO sh /tmp/get-docker.sh
+  rm -f /tmp/get-docker.sh
   # Permettre à l'utilisateur courant d'utiliser docker sans sudo
   $SUDO usermod -aG docker "$USER" 2>/dev/null || true
 else
