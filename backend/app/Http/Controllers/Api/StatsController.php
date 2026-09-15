@@ -5,17 +5,25 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\ChargeJournaliere;
 use App\Models\LigneAchat;
+use Illuminate\Http\Request;
 
 class StatsController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        $validated = $request->validate([
+            'from' => 'nullable|date',
+            'to' => 'nullable|date|after_or_equal:from',
+        ]);
+
         $today = now()->toDateString();
+        $from = $validated['from'] ?? now()->subDays(30)->toDateString();
+        $to = $validated['to'] ?? $today;
 
         return response()->json([
             'today' => $this->daySummary($today),
             'series_7j' => $this->lastSevenDays(),
-            'totaux_periode' => $this->periodTotals(now()->subDays(30)->toDateString(), $today),
+            'totaux_periode' => $this->periodTotals($from, $to),
         ]);
     }
 

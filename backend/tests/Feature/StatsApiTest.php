@@ -85,4 +85,21 @@ class StatsApiTest extends TestCase
         $this->assertSame(0.0, (float) $response->json('today.achats.montant_total'));
         $this->assertSame(0.0, (float) $response->json('totaux_periode.montant_achats'));
     }
+
+    public function test_stats_accept_custom_period(): void
+    {
+        $from = now()->subDays(20)->toDateString();
+        $to = now()->subDays(10)->toDateString();
+
+        $inSource = SourceAchat::factory()->create(['date' => $from]);
+        LigneAchat::factory()->create(['source_achat_id' => $inSource->id, 'poids_kg' => 10, 'prix' => 10000]);
+
+        $outSource = SourceAchat::factory()->create(['date' => now()->subDays(40)->toDateString()]);
+        LigneAchat::factory()->create(['source_achat_id' => $outSource->id, 'poids_kg' => 999, 'prix' => 999999]);
+
+        $response = $this->getJson("/api/stats?from={$from}&to={$to}", $this->authHeaders())->assertOk();
+
+        $this->assertSame(10000.0, (float) $response->json('totaux_periode.montant_achats'));
+        $this->assertSame(10.0, (float) $response->json('totaux_periode.poids_total'));
+    }
 }

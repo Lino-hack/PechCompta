@@ -28,10 +28,16 @@ export function useTodayAchats() {
   })
 }
 
-export function useStats() {
+export function useStats(from?: string, to?: string) {
   return useQuery({
-    queryKey: ['stats'],
-    queryFn: async () => (await api.get<Stats>('/stats')).data,
+    queryKey: ['stats', from, to],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (from) params.set('from', from)
+      if (to) params.set('to', to)
+      const query = params.toString()
+      return (await api.get<Stats>(`/stats${query ? `?${query}` : ''}`)).data
+    },
   })
 }
 

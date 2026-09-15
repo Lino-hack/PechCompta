@@ -12,12 +12,16 @@ import {
   FileSpreadsheet,
   FileText,
   ShipWheel,
+  Pencil,
+  Check,
+  X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import api, { API_BASE_URL } from '@/lib/api'
+import api from '@/lib/api'
+import { downloadExport } from '@/lib/export'
 import { queryKeys, useStats, useTodayAchats, useTypesPoisson, usePecheurs, useDetaillants } from '@/hooks/useApiHooks'
 import { formatMontantCourt, formatMontant, formatPoids, formatDateFr, todayISO } from '@/lib/format'
-import type { SourceAchatType } from '@/lib/types'
+import type { LigneAchat, SourceAchatType } from '@/lib/types'
 
 export default function Dashboard() {
   return (
@@ -35,31 +39,8 @@ function Header() {
   const [from, setFrom] = useState(todayISO())
   const [to, setTo] = useState(todayISO())
 
-  async function downloadExport(format: 'excel' | 'pdf') {
-    const token = localStorage.getItem('peche_token')
-    const response = await fetch(`${API_BASE_URL}/export/${format}?from=${from}&to=${to}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    if (!response.ok) {
-      if (response.status === 401) {
-        localStorage.removeItem('peche_token')
-        if (window.location.pathname !== '/login') {
-          window.location.href = '/login'
-        }
-      }
-      return
-    }
-    const blob = await response.blob()
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `rapport-${format}-${from}-${to}.${format === 'excel' ? 'xlsx' : 'pdf'}`
-    link.click()
-    URL.revokeObjectURL(url)
-  }
-
   return (
-    <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
       <div>
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Journée en cours</h1>
         <p className="text-slate-500 dark:text-slate-400 mt-1 capitalize">{formatDateFr(today)}</p>
@@ -73,8 +54,9 @@ function Header() {
             id="from-date"
             type="date"
             value={from}
+            max={to}
             onChange={(event) => setFrom(event.target.value)}
-            className="bg-transparent text-sm text-slate-800 dark:text-slate-200 outline-none"
+            className="bg-transparent text-sm text-slate-800 dark:text-slate-200 outline-none min-w-0"
           />
           <label className="text-xs font-medium text-slate-500 dark:text-slate-400" htmlFor="to-date">
             au
@@ -85,14 +67,14 @@ function Header() {
             value={to}
             min={from}
             onChange={(event) => setTo(event.target.value)}
-            className="bg-transparent text-sm text-slate-800 dark:text-slate-200 outline-none"
+            className="bg-transparent text-sm text-slate-800 dark:text-slate-200 outline-none min-w-0"
           />
         </div>
-        <Button variant="outline" size="sm" onClick={() => downloadExport('excel')}>
+        <Button variant="outline" size="sm" onClick={() => downloadExport(`/export/excel?from=${from}&to=${to}&include_cycles=0`, `rapport-achats-${from}-${to}.xlsx`)}>
           <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
           Excel
         </Button>
-        <Button variant="outline" size="sm" onClick={() => downloadExport('pdf')}>
+        <Button variant="outline" size="sm" onClick={() => downloadExport(`/export/pdf?from=${from}&to=${to}&include_cycles=0`, `rapport-achats-${from}-${to}.pdf`)}>
           <FileText className="h-4 w-4 text-red-600" />
           PDF
         </Button>
@@ -266,8 +248,8 @@ function QuickAddForm() {
           </datalist>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
-          <div className="col-span-1">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div className="col-span-2 sm:col-span-1">
             <label htmlFor="type-poisson" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
               Poisson
             </label>
@@ -337,13 +319,27 @@ function QuickAddForm() {
 
 function TodayList() {
   const queryClient = useQueryClient()
+  const { data: types } = useTypesPoisson()
   const { data: sources, isLoading } = useTodayAchats()
+  const [editingId, setEditingId] = useState<number | null>(null)
 
   const deleteMutation = useMutation({
     mutationFn: async (ligneId: number) => {
       await api.delete(`/achats/lignes/${ligneId}`)
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.achatsToday })
+      queryClient.invalidateQueries({ queryKey: queryKeys.stats })
+    },
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, payload }: { id: number; payload: Record<string, string | number> }) => {
+      const response = await api.put<LigneAchat>(`/achats/lignes/${id}`, payload)
+      return response.data
+    },
+    onSuccess: () => {
+      setEditingId(null)
       queryClient.invalidateQueries({ queryKey: queryKeys.achatsToday })
       queryClient.invalidateQueries({ queryKey: queryKeys.stats })
     },
@@ -398,28 +394,18 @@ function TodayList() {
               </div>
               <ul className="space-y-1.5">
                 {(source.lignes_achats ?? []).map((ligne) => (
-                  <li
+                  <LigneItem
                     key={ligne.id}
-                    className="flex items-center justify-between rounded-lg bg-slate-50 dark:bg-slate-800/50 px-3 py-2"
-                  >
-                    <div>
-                      <p className="text-sm text-slate-800 dark:text-slate-200">{ligne.type_poisson?.nom ?? '—'}</p>
-                      <p className="text-xs text-slate-400">{formatPoids(ligne.poids_kg)}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-slate-900 dark:text-white">
-                        {formatMontant(ligne.prix)}
-                      </span>
-                      <button
-                        onClick={() => deleteMutation.mutate(ligne.id)}
-                        disabled={deleteMutation.isPending}
-                        className="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
-                        aria-label="Supprimer la ligne"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </li>
+                    ligne={ligne}
+                    types={types ?? []}
+                    isEditing={editingId === ligne.id}
+                    isDeleting={deleteMutation.isPending}
+                    isSaving={updateMutation.isPending && editingId === ligne.id}
+                    onEdit={() => setEditingId(ligne.id)}
+                    onCancel={() => setEditingId(null)}
+                    onSave={(payload) => updateMutation.mutate({ id: ligne.id, payload })}
+                    onDelete={() => deleteMutation.mutate(ligne.id)}
+                  />
                 ))}
               </ul>
             </li>
@@ -427,5 +413,130 @@ function TodayList() {
         })}
       </ul>
     </section>
+  )
+}
+
+function LigneItem({
+  ligne,
+  types,
+  isEditing,
+  isDeleting,
+  isSaving,
+  onEdit,
+  onCancel,
+  onSave,
+  onDelete,
+}: {
+  ligne: LigneAchat
+  types: { id: number; nom: string }[]
+  isEditing: boolean
+  isDeleting: boolean
+  isSaving: boolean
+  onEdit: () => void
+  onCancel: () => void
+  onSave: (payload: Record<string, string | number>) => void
+  onDelete: () => void
+}) {
+  const [typePoissonId, setTypePoissonId] = useState(String(ligne.type_poisson_id ?? ''))
+  const [poidsKg, setPoidsKg] = useState(String(ligne.poids_kg ?? ''))
+  const [prix, setPrix] = useState(String(ligne.prix ?? ''))
+  const [error, setError] = useState<string | null>(null)
+
+  function handleSave() {
+    if (!typePoissonId || !poidsKg || !prix) {
+      setError('Tous les champs sont requis.')
+      return
+    }
+    onSave({
+      type_poisson_id: typePoissonId,
+      poids_kg: poidsKg,
+      prix,
+    })
+  }
+
+  if (isEditing) {
+    return (
+      <li className="rounded-lg bg-sky-50 dark:bg-slate-800/50 px-3 py-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          <div className="col-span-2 sm:col-span-1">
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Poisson</label>
+            <select
+              value={typePoissonId}
+              onChange={(event) => setTypePoissonId(event.target.value)}
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-sky-500"
+            >
+              <option value="">Choisir…</option>
+              {types.map((typePoisson) => (
+                <option key={typePoisson.id} value={typePoisson.id}>
+                  {typePoisson.nom}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Poids (kg)</label>
+            <input
+              type="number"
+              inputMode="decimal"
+              step="0.1"
+              min="0"
+              value={poidsKg}
+              onChange={(event) => setPoidsKg(event.target.value)}
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-sky-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Prix (FCFA)</label>
+            <input
+              type="number"
+              inputMode="numeric"
+              min="0"
+              value={prix}
+              onChange={(event) => setPrix(event.target.value)}
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-sky-500"
+            />
+          </div>
+        </div>
+        {error !== null && <p className="text-xs text-red-600 dark:text-red-400 mt-2">{error}</p>}
+        <div className="flex justify-end gap-2 mt-2">
+          <Button type="button" size="sm" variant="outline" onClick={onCancel} disabled={isSaving}>
+            <X className="h-3.5 w-3.5" />
+            Annuler
+          </Button>
+          <Button type="button" size="sm" onClick={handleSave} disabled={isSaving}>
+            {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+            Enregistrer
+          </Button>
+        </div>
+      </li>
+    )
+  }
+
+  return (
+    <li className="flex items-center justify-between rounded-lg bg-slate-50 dark:bg-slate-800/50 px-3 py-2">
+      <div>
+        <p className="text-sm text-slate-800 dark:text-slate-200">{ligne.type_poisson?.nom ?? '—'}</p>
+        <p className="text-xs text-slate-400">{formatPoids(ligne.poids_kg)}</p>
+      </div>
+      <div className="flex items-center gap-1">
+        <span className="text-sm font-semibold text-slate-900 dark:text-white">{formatMontant(ligne.prix)}</span>
+        <button
+          onClick={onEdit}
+          disabled={isDeleting}
+          className="p-1.5 rounded-md text-slate-400 hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950 transition-colors"
+          aria-label="Modifier la ligne"
+        >
+          <Pencil className="h-4 w-4" />
+        </button>
+        <button
+          onClick={onDelete}
+          disabled={isDeleting}
+          className="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
+          aria-label="Supprimer la ligne"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+    </li>
   )
 }

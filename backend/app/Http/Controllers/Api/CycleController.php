@@ -10,6 +10,23 @@ use Illuminate\Http\Request;
 
 class CycleController extends Controller
 {
+    public function export(Request $request, int $id)
+    {
+        $cycle = CycleCamion::findOrFail($id);
+
+        $request->merge([
+            'from' => $cycle->date_debut,
+            'to' => $cycle->date_fin ?? now()->toDateString(),
+            'include_cycles' => 1,
+        ]);
+
+        $export = new ExportController;
+
+        return $request->query('format', 'excel') === 'pdf'
+            ? $export->exportPdf($request)
+            : $export->exportExcel($request);
+    }
+
     public function index()
     {
         return response()->json(CycleCamion::with('fraisLibres')->orderBy('date_debut', 'desc')->get());

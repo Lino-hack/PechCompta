@@ -122,6 +122,40 @@ class AchatApiTest extends TestCase
         $this->assertDatabaseMissing('ligne_achats', ['id' => $ligne->id]);
     }
 
+    public function test_update_ligne_modifies_poids_and_prix(): void
+    {
+        $ligne = LigneAchat::factory()->create();
+        $newType = TypePoisson::factory()->create();
+
+        $response = $this->putJson('/api/achats/lignes/'.$ligne->id, [
+            'type_poisson_id' => $newType->id,
+            'poids_kg' => 30,
+            'prix' => 60000,
+        ], $this->authHeaders());
+
+        $response->assertOk()
+            ->assertJsonPath('poids_kg', 30)
+            ->assertJsonPath('prix', 60000)
+            ->assertJsonPath('type_poisson_id', $newType->id);
+
+        $this->assertDatabaseHas('ligne_achats', [
+            'id' => $ligne->id,
+            'poids_kg' => 30,
+            'prix' => 60000,
+        ]);
+    }
+
+    public function test_update_ligne_rejects_invalid_price(): void
+    {
+        $ligne = LigneAchat::factory()->create();
+
+        $this->putJson('/api/achats/lignes/'.$ligne->id, [
+            'type_poisson_id' => $ligne->type_poisson_id,
+            'poids_kg' => 5,
+            'prix' => -10,
+        ], $this->authHeaders())->assertUnprocessable();
+    }
+
     public function test_get_today_returns_only_today_achats(): void
     {
         $today = SourceAchat::factory()->create(['date' => now()->toDateString()]);

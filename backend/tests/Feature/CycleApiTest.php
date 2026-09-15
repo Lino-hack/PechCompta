@@ -9,6 +9,7 @@ use App\Models\SourceAchat;
 use App\Models\TypePoisson;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use Tests\TestCase;
 
 class CycleApiTest extends TestCase
@@ -110,5 +111,63 @@ class CycleApiTest extends TestCase
 
         $this->assertCount(1, $response->json('achats'));
         $this->assertSame($ligne->id, $response->json('achats.0.lignes_achats.0.id'));
+    }
+
+    public function test_cycle_export_excel_returns_xlsx_file(): void
+    {
+        $cycle = CycleCamion::factory()->create([
+            'date_debut' => now()->subDays(3)->toDateString(),
+            'date_fin' => now()->toDateString(),
+            'statut' => 'cloture',
+        ]);
+        SourceAchat::factory()->create(['date' => now()->toDateString()]);
+
+        $response = $this->get('/api/cycles/'.$cycle->id.'/export', $this->authHeaders());
+
+        $response->assertOk();
+        $this->assertStringContainsString(
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            $response->headers->get('content-type')
+        );
+    }
+
+    public function test_cycle_export_pdf_returns_pdf_file(): void
+    {
+        $cycle = CycleCamion::factory()->create([
+            'date_debut' => now()->subDays(3)->toDateString(),
+            'date_fin' => now()->toDateString(),
+            'statut' => 'cloture',
+        ]);
+
+        $response = $this->get('/api/cycles/'.$cycle->id.'/export?format=pdf', $this->authHeaders());
+
+        $response->assertOk();
+        $this->assertStringContainsString('application/pdf', $response->headers->get('content-type'));
+    }
+
+    public function test_cycle_export_covers_cycle_period(): void
+    {
+        $cycle = CycleCamion::factory()->create([
+            'date_debut' => now()->subDays(3)->toDateString(),
+            'date_fin' => now()->toDateString(),
+            'statut' => 'cloture',
+        ]);
+        SourceAchat::factory()->create(['date' => now()->toDateString()]);
+        SourceAchat::factory()->create(['date' => now()->subDays(10)->toDateString()]);
+
+        $response = $this->get('/api/cycles/'.$cycle->id.'/export', $this->authHeaders());
+        $response->assertOk();
+
+        $file = $response->baseResponse->getFile();
+        $spreadsheet = IOFactory::load($file->getPathname());
+        unlink($file->getPathname());
+
+        $content = implode("\n", array_map(
+            fn (array $row) => implode(' | ', $row),
+            $spreadsheet->getActiveSheet()->toArray()
+        ));
+
+        $this->assertStringContainsString($cycle->date_debut, $content);
+        $this->assertStringContainsString($cycle->date_fin, $content);
     }
 }

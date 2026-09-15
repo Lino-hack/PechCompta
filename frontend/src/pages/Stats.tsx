@@ -12,14 +12,24 @@ import {
   Cell,
   Legend,
 } from 'recharts'
+import { useState } from 'react'
 import { BarChart3, TrendingUp, Wallet, ShoppingCart } from 'lucide-react'
 import { useStats } from '@/hooks/useApiHooks'
-import { formatMontantCourt, formatMontant, formatNumber } from '@/lib/format'
+import { formatMontantCourt, formatMontant, formatNumber, todayISO } from '@/lib/format'
 
 const CHART_COLORS = ['#0284c7', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899']
+const DEFAULT_WINDOW_DAYS = 30
+
+function defaultFrom(): string {
+  const now = new Date()
+  const offset = now.getTimezoneOffset()
+  return new Date(now.getTime() - DEFAULT_WINDOW_DAYS * 86400000 - offset * 60000).toISOString().slice(0, 10)
+}
 
 export default function Stats() {
-  const { data: stats, isLoading } = useStats()
+  const [from, setFrom] = useState(defaultFrom())
+  const [to, setTo] = useState(todayISO())
+  const { data: stats, isLoading } = useStats(from, to)
 
   if (isLoading || !stats) {
     return (
@@ -31,19 +41,19 @@ export default function Stats() {
 
   const cards = [
     {
-      label: 'Achats (30 j)',
+      label: 'Achats sur la période',
       value: formatMontantCourt(stats.totaux_periode.montant_achats),
       icon: <ShoppingCart className="h-5 w-5 text-sky-600 dark:text-sky-400" />,
       detail: `${formatNumber(stats.totaux_periode.poids_total)} kg achetés`,
     },
     {
-      label: 'Charges (30 j)',
+      label: 'Charges sur la période',
       value: formatMontantCourt(stats.totaux_periode.charges_total),
       icon: <Wallet className="h-5 w-5 text-amber-600 dark:text-amber-400" />,
       detail: 'Glace, transport, libres',
     },
     {
-      label: 'Total dépenses (30 j)',
+      label: 'Total dépenses sur la période',
       value: formatMontantCourt(stats.totaux_periode.total_depenses),
       icon: <TrendingUp className="h-5 w-5 text-rose-600 dark:text-rose-400" />,
       detail: `${formatDateRange(stats.totaux_periode)}`,
@@ -64,12 +74,40 @@ export default function Stats() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-          <BarChart3 className="h-6 w-6 text-sky-600 dark:text-sky-400" />
-          Statistiques
-        </h1>
-        <p className="text-slate-500 dark:text-slate-400 mt-1">Vue d’ensemble sur 30 jours et aujourd’hui</p>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <BarChart3 className="h-6 w-6 text-sky-600 dark:text-sky-400" />
+            Statistiques
+          </h1>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">Vue d’ensemble sur la période sélectionnée</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 shadow-sm">
+            <label className="text-xs font-medium text-slate-500 dark:text-slate-400" htmlFor="stats-from">
+              Du
+            </label>
+            <input
+              id="stats-from"
+              type="date"
+              value={from}
+              max={to}
+              onChange={(event) => setFrom(event.target.value)}
+              className="bg-transparent text-sm text-slate-800 dark:text-slate-200 outline-none min-w-0"
+            />
+            <label className="text-xs font-medium text-slate-500 dark:text-slate-400" htmlFor="stats-to">
+              au
+            </label>
+            <input
+              id="stats-to"
+              type="date"
+              value={to}
+              min={from}
+              onChange={(event) => setTo(event.target.value)}
+              className="bg-transparent text-sm text-slate-800 dark:text-slate-200 outline-none min-w-0"
+            />
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

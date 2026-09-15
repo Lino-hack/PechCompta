@@ -63,6 +63,20 @@ class AchatController extends Controller
         return response()->json($ligne->load('typePoisson', 'sourceAchat.pecheur', 'sourceAchat.detaillant'), 201);
     }
 
+    public function updateLigne(Request $request, int $id)
+    {
+        $validated = $request->validate([
+            'type_poisson_id' => 'required|exists:type_poissons,id',
+            'poids_kg' => 'required|numeric|min:0',
+            'prix' => 'required|numeric|min:0',
+        ]);
+
+        $ligne = LigneAchat::findOrFail($id);
+        $ligne->update($validated);
+
+        return response()->json($ligne->load('typePoisson', 'sourceAchat.pecheur', 'sourceAchat.detaillant'));
+    }
+
     public function destroyLigne(int $id)
     {
         $ligne = LigneAchat::findOrFail($id);

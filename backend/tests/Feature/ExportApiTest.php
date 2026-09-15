@@ -83,6 +83,13 @@ class ExportApiTest extends TestCase
             'date' => now()->toDateString(),
         ]);
         LigneAchat::factory()->create(['source_achat_id' => $source->id, 'poids_kg' => 12, 'prix' => 30000]);
+
+        $detaillantSource = SourceAchat::factory()->create([
+            'type' => 'detaillant',
+            'date' => now()->toDateString(),
+        ]);
+        LigneAchat::factory()->create(['source_achat_id' => $detaillantSource->id, 'poids_kg' => 5, 'prix' => 15000]);
+
         ChargeJournaliere::factory()->create([
             'date' => now()->toDateString(),
             'nb_bagues_glace' => 1,
@@ -115,8 +122,34 @@ class ExportApiTest extends TestCase
             $spreadsheet->getActiveSheet()->toArray()
         ));
 
-        foreach (['1. Achats', '2. Pirogues', '3. Charges journalières', '4. Cycles camion', '5. Résumé', '7 000 FCFA', '38 500 FCFA'] as $needle) {
+        foreach (['1. Achats pirogues', '2. Achats détaillants', '3. Charges journalières', '4. Cycles camion', '5. Résumé', '7 000 FCFA', '53 500 FCFA'] as $needle) {
             $this->assertStringContainsString($needle, $content);
         }
+    }
+
+    public function test_excel_export_without_cycles_omits_cycles_section(): void
+    {
+        SourceAchat::factory()->create(['date' => now()->toDateString()]);
+        CycleCamion::create([
+            'date_debut' => now()->toDateString(),
+            'date_fin' => now()->toDateString(),
+            'frais_route' => 5000,
+            'statut' => 'cloture',
+        ]);
+
+        $response = $this->get('/api/export/excel?include_cycles=0', $this->authHeaders());
+        $response->assertOk();
+
+        $file = $response->baseResponse->getFile();
+        $spreadsheet = IOFactory::load($file->getPathname());
+        unlink($file->getPathname());
+
+        $content = implode("\n", array_map(
+            fn (array $row) => implode(' | ', $row),
+            $spreadsheet->getActiveSheet()->toArray()
+        ));
+
+        $this->assertStringNotContainsString('4. Cycles camion', $content);
+        $this->assertStringContainsString('5. Résumé', $content);
     }
 }

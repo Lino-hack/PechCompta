@@ -17,6 +17,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/achats/today', [AchatController::class, 'getTodayAchats']);
     Route::post('/achats', [AchatController::class, 'store']);
+    Route::put('/achats/lignes/{id}', [AchatController::class, 'updateLigne']);
     Route::delete('/achats/lignes/{id}', [AchatController::class, 'destroyLigne']);
 
     Route::get('/charges/today', [ChargeController::class, 'getToday']);
@@ -25,6 +26,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/cycles', [CycleController::class, 'index']);
     Route::post('/cycles', [CycleController::class, 'store']);
     Route::get('/cycles/{id}', [CycleController::class, 'getDetails']);
+    Route::get('/cycles/{id}/export', [CycleController::class, 'export']);
     Route::post('/cycles/{id}/close', [CycleController::class, 'close']);
     Route::post('/cycles/{id}/frais-libres', [CycleController::class, 'addFraisLibre']);
     Route::delete('/cycles/{id}/frais-libres/{fraisId}', [CycleController::class, 'destroyFraisLibre']);

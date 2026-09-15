@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Truck, Plus, Loader2, ChevronDown, ChevronUp, Lock, FileSpreadsheet, Trash2 } from 'lucide-react'
+import { Truck, Plus, Loader2, ChevronDown, ChevronUp, Lock, FileSpreadsheet, FileText, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import api, { API_BASE_URL } from '@/lib/api'
+import api from '@/lib/api'
+import { downloadExport } from '@/lib/export'
 import { formatMontant, formatDateFr, todayISO } from '@/lib/format'
 import { queryKeys, useCycles, useCycleDetails } from '@/hooks/useApiHooks'
 import type { CycleCamion } from '@/lib/types'
@@ -220,28 +221,11 @@ function CycleDetail({ cycle }: { cycle: CycleCamion }) {
     addFraisMutation.mutate()
   }
 
-  async function downloadExport() {
-    const token = localStorage.getItem('peche_token')
-    const to = details?.cycle.date_fin ?? todayISO()
-    const response = await fetch(`${API_BASE_URL}/export/excel?from=${details?.cycle.date_debut}&to=${to}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    if (!response.ok) {
-      if (response.status === 401) {
-        localStorage.removeItem('peche_token')
-        if (window.location.pathname !== '/login') {
-          window.location.href = '/login'
-        }
-      }
-      return
-    }
-    const blob = await response.blob()
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `cycle-${cycle.id}-rapport.xlsx`
-    link.click()
-    URL.revokeObjectURL(url)
+  async function downloadCycleExport(format: 'excel' | 'pdf') {
+    await downloadExport(
+      `/cycles/${cycle.id}/export?format=${format}`,
+      `cycle-${cycle.id}-rapport.${format === 'excel' ? 'xlsx' : 'pdf'}`,
+    )
   }
 
   if (isLoading || !details) {
@@ -361,9 +345,13 @@ function CycleDetail({ cycle }: { cycle: CycleCamion }) {
       </section>
 
       <div className="flex flex-wrap gap-2">
-        <Button variant="outline" size="sm" onClick={downloadExport}>
+        <Button variant="outline" size="sm" onClick={() => downloadCycleExport('excel')}>
           <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
           Exporter en Excel
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => downloadCycleExport('pdf')}>
+          <FileText className="h-4 w-4 text-red-600" />
+          Exporter en PDF
         </Button>
         {cycle.statut === 'ouvert' && (
           <Button size="sm" variant="secondary" onClick={() => closeMutation.mutate()} disabled={closeMutation.isPending}>
