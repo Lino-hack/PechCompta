@@ -80,7 +80,12 @@ class AchatController extends Controller
     public function destroyLigne(int $id)
     {
         $ligne = LigneAchat::findOrFail($id);
+        $sourceId = $ligne->source_achat_id;
         $ligne->delete();
+
+        if (LigneAchat::where('source_achat_id', $sourceId)->doesntExist()) {
+            SourceAchat::where('id', $sourceId)->delete();
+        }
 
         return response()->json(['message' => 'Ligne supprimée']);
     }

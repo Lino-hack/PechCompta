@@ -122,6 +122,30 @@ class AchatApiTest extends TestCase
         $this->assertDatabaseMissing('ligne_achats', ['id' => $ligne->id]);
     }
 
+    public function test_delete_last_ligne_removes_source_achat(): void
+    {
+        $source = SourceAchat::factory()->create();
+        $ligne = LigneAchat::factory()->create(['source_achat_id' => $source->id]);
+
+        $this->deleteJson('/api/achats/lignes/'.$ligne->id, [], $this->authHeaders())
+            ->assertOk();
+
+        $this->assertDatabaseMissing('ligne_achats', ['id' => $ligne->id]);
+        $this->assertDatabaseMissing('source_achats', ['id' => $source->id]);
+    }
+
+    public function test_delete_ligne_keeps_source_achat_when_other_lignes_remain(): void
+    {
+        $source = SourceAchat::factory()->create();
+        $ligne1 = LigneAchat::factory()->create(['source_achat_id' => $source->id]);
+        LigneAchat::factory()->create(['source_achat_id' => $source->id]);
+
+        $this->deleteJson('/api/achats/lignes/'.$ligne1->id, [], $this->authHeaders())
+            ->assertOk();
+
+        $this->assertDatabaseHas('source_achats', ['id' => $source->id]);
+    }
+
     public function test_update_ligne_modifies_poids_and_prix(): void
     {
         $ligne = LigneAchat::factory()->create();
