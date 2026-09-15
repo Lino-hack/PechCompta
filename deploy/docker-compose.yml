@@ -1,0 +1,67 @@
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: peche
+      POSTGRES_USER: peche
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U peche -d peche"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  backend:
+    build: ../backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      APP_NAME: PêchCompta
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_URL: https://${SSLIP_HOST}
+      APP_LOCALE: fr
+      APP_FALLBACK_LOCALE: fr
+      APP_FAKER_LOCALE: fr_FR
+      FRONTEND_URL: ${FRONTEND_URL}
+      DB_CONNECTION: pgsql
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_DATABASE: peche
+      DB_USERNAME: peche
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      SESSION_DRIVER: database
+      CACHE_STORE: file
+      QUEUE_CONNECTION: sync
+      LOG_LEVEL: warning
+    volumes:
+      - storage:/var/www/html/storage
+
+  web:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SSLIP_HOST: ${SSLIP_HOST}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+      - storage:/srv/storage
+
+volumes:
+  pgdata:
+  storage:
+  caddydata:

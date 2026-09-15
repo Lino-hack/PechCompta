@@ -1,0 +1,4 @@
+{$SSLIP_HOST} {
+	encode gzip
+	reverse_proxy backend:80
+}
