@@ -54,4 +54,51 @@ class AuthApiTest extends TestCase
             'Authorization' => 'Bearer '.$token,
         ])->assertOk()->assertJsonPath('email', $user->email);
     }
+
+    public function test_change_password_updates_credentials(): void
+    {
+        $user = User::factory()->create(['password' => bcrypt('secret123')]);
+        $token = $user->createToken('test')->plainTextToken;
+
+        $this->postJson('/api/change-password', [
+            'current_password' => 'secret123',
+            'new_password' => 'nouveau-mot-de-passe',
+            'new_password_confirmation' => 'nouveau-mot-de-passe',
+        ], [
+            'Authorization' => 'Bearer '.$token,
+        ])->assertOk();
+
+        $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'nouveau-mot-de-passe',
+        ])->assertOk();
+
+        $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'secret123',
+        ])->assertUnauthorized();
+    }
+
+    public function test_change_password_rejects_wrong_current_password(): void
+    {
+        $user = User::factory()->create(['password' => bcrypt('secret123')]);
+        $token = $user->createToken('test')->plainTextToken;
+
+        $this->postJson('/api/change-password', [
+            'current_password' => 'mauvais',
+            'new_password' => 'nouveau-mot-de-passe',
+            'new_password_confirmation' => 'nouveau-mot-de-passe',
+        ], [
+            'Authorization' => 'Bearer '.$token,
+        ])->assertStatus(422);
+    }
+
+    public function test_change_password_requires_authentication(): void
+    {
+        $this->postJson('/api/change-password', [
+            'current_password' => 'secret123',
+            'new_password' => 'nouveau-mot-de-passe',
+            'new_password_confirmation' => 'nouveau-mot-de-passe',
+        ])->assertUnauthorized();
+    }
 }

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ChargeJournaliere;
+use App\Models\CycleCamion;
 use App\Models\SourceAchat;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
@@ -36,11 +37,23 @@ class ExportController extends Controller
         $data = $this->reportData($from, $to);
 
         $spreadsheet = new Spreadsheet;
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Rapport');
 
-        $this->writeAchatsSheet($spreadsheet->getActiveSheet(), $data['sources'], $data['totaux'], $from, $to);
-        $this->writePiroguesSheet($spreadsheet->createSheet(), $data['sources']);
-        $this->writeChargesSheet($spreadsheet->createSheet(), $data['charges'], $data['totaux']);
-        $this->writeResumeSheet($spreadsheet->createSheet(), $data['totaux'], $from, $to);
+        $sheet->setCellValue('A1', 'Rapport des achats de poisson');
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(16);
+        $sheet->setCellValue('A2', 'Période : '.$from.' → '.$to);
+        $sheet->getStyle('A2')->getFont()->setColor(new Color('FF64748B'));
+
+        $row = $this->writeAchatsSection($sheet, $data['sources'], $data['totaux'], 4);
+        $row = $this->writePiroguesSection($sheet, $data['sources'], $row);
+        $row = $this->writeChargesSection($sheet, $data['charges'], $data['totaux'], $row);
+        $row = $this->writeCyclesSection($sheet, $data['cycles'], $row);
+        $this->writeResumeSection($sheet, $data['totaux'], $row);
+
+        foreach (range('A', 'G') as $column) {
+            $sheet->getColumnDimension($column)->setAutoSize(true);
+        }
 
         $filename = 'rapport-achats-'.$from.'-'.$to.'.xlsx';
         $writer = new Xlsx($spreadsheet);
@@ -52,27 +65,21 @@ class ExportController extends Controller
             ->deleteFileAfterSend(true);
     }
 
-    private function writeAchatsSheet($sheet, $sources, array $totaux, string $from, string $to): void
+    private function writeAchatsSection($sheet, $sources, array $totaux, int $row): int
     {
-        $sheet->setTitle('Achats');
-
-        $sheet->setCellValue('A1', 'Rapport des achats de poisson');
-        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(16);
-        $sheet->setCellValue('A2', 'Période : '.$from.' → '.$to);
-        $sheet->getStyle('A2')->getFont()->setColor(new Color('FF64748B'));
-        $sheet->getRowDimension(2)->setVisible(true);
+        $sheet->setCellValue("A{$row}", '1. Achats');
+        $sheet->getStyle("A{$row}")->getFont()->setBold(true)->setSize(14);
+        $row++;
 
         $headers = ['N°', 'Date', 'Source', 'Nom', 'Poisson', 'Poids (kg)', 'Prix (FCFA)'];
-        $headerRow = 4;
         foreach ($headers as $col => $header) {
             $column = chr(65 + $col);
-            $sheet->setCellValue("{$column}{$headerRow}", $header);
+            $sheet->setCellValue("{$column}{$row}", $header);
         }
-        $this->styleHeader($sheet, "A{$headerRow}:G{$headerRow}");
+        $this->styleHeader($sheet, "A{$row}:G{$row}");
+        $row++;
 
-        $row = $headerRow + 1;
         $index = 1;
-
         foreach ($sources as $source) {
             $type = $source->type === 'pirogue' ? 'Pêcheur' : 'Détaillant';
             $nom = $source->type === 'pirogue'
@@ -100,32 +107,27 @@ class ExportController extends Controller
         $sheet->getStyle("F{$row}")->getNumberFormat()->setFormatCode('0.00');
         $sheet->getStyle("G{$row}")->getNumberFormat()->setFormatCode('#,##0');
         $this->styleTotal($sheet, "A{$row}:G{$row}");
+        $row += 2;
 
-        foreach (range('A', 'G') as $column) {
-            $sheet->getColumnDimension($column)->setAutoSize(true);
-        }
+        return $row;
     }
 
-    private function writePiroguesSheet($sheet, $sources): void
+    private function writePiroguesSection($sheet, $sources, int $row): int
     {
-        $sheet->setTitle('Pirogues');
-
-        $sheet->setCellValue('A1', 'Liste des pirogues');
-        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(16);
-        $sheet->setCellValue('A2', 'Achats par pirogue sur la période');
-        $sheet->getStyle('A2')->getFont()->setColor(new Color('FF64748B'));
-
-        $headers = ['N°', 'Date', 'Pirogue', 'Nb lignes', 'Poids (kg)', 'Montant (FCFA)'];
-        $headerRow = 4;
-        foreach ($headers as $col => $header) {
-            $column = chr(65 + $col);
-            $sheet->setCellValue("{$column}{$headerRow}", $header);
-        }
-        $this->styleHeader($sheet, "A{$headerRow}:F{$headerRow}");
-
         $pirogues = $sources->filter(fn (SourceAchat $source) => $source->type === 'pirogue');
 
-        $row = $headerRow + 1;
+        $sheet->setCellValue("A{$row}", '2. Pirogues');
+        $sheet->getStyle("A{$row}")->getFont()->setBold(true)->setSize(14);
+        $row++;
+
+        $headers = ['N°', 'Date', 'Pirogue', 'Nb lignes', 'Poids (kg)', 'Montant (FCFA)'];
+        foreach ($headers as $col => $header) {
+            $column = chr(65 + $col);
+            $sheet->setCellValue("{$column}{$row}", $header);
+        }
+        $this->styleHeader($sheet, "A{$row}:F{$row}");
+        $row++;
+
         $index = 1;
         foreach ($pirogues as $source) {
             $lignes = $source->lignesAchats;
@@ -152,25 +154,25 @@ class ExportController extends Controller
         $sheet->getStyle("E{$row}")->getNumberFormat()->setFormatCode('0.00');
         $sheet->getStyle("F{$row}")->getNumberFormat()->setFormatCode('#,##0');
         $this->styleTotal($sheet, "A{$row}:F{$row}");
+        $row += 2;
 
-        foreach (range('A', 'F') as $column) {
-            $sheet->getColumnDimension($column)->setAutoSize(true);
-        }
+        return $row;
     }
 
-    private function writeChargesSheet($sheet, $charges, array $totaux): void
+    private function writeChargesSection($sheet, $charges, array $totaux, int $row): int
     {
-        $sheet->setTitle('Charges');
+        $sheet->setCellValue("A{$row}", '3. Charges journalières');
+        $sheet->getStyle("A{$row}")->getFont()->setBold(true)->setSize(14);
+        $row++;
 
         $headers = ['Date', 'Bacs glace', 'Prix / bac (FCFA)', 'Glace (FCFA)', 'Transport (FCFA)', 'Charges libres (FCFA)', 'Total (FCFA)'];
-        $headerRow = 1;
         foreach ($headers as $col => $header) {
             $column = chr(65 + $col);
-            $sheet->setCellValue("{$column}{$headerRow}", $header);
+            $sheet->setCellValue("{$column}{$row}", $header);
         }
-        $this->styleHeader($sheet, "A{$headerRow}:G{$headerRow}");
+        $this->styleHeader($sheet, "A{$row}:G{$row}");
+        $row++;
 
-        $row = $headerRow + 1;
         foreach ($charges as $charge) {
             $sheet->setCellValue("A{$row}", $charge['date']);
             $sheet->setCellValue("B{$row}", $charge['nb_bagues_glace']);
@@ -185,48 +187,69 @@ class ExportController extends Controller
             $row++;
         }
 
-        $sheet->setCellValue("F{$row}", 'Total charges');
+        $sheet->setCellValue("F{$row}", 'Total charges journalières');
         $sheet->setCellValue("G{$row}", $totaux['charges_total']);
         $sheet->getStyle("G{$row}")->getNumberFormat()->setFormatCode('#,##0');
         $this->styleTotal($sheet, "A{$row}:G{$row}");
-        $row++;
+        $row += 2;
 
-        $sheet->setCellValue("E{$row}", 'Total dépenses');
-        $sheet->setCellValue("F{$row}", $totaux['total_depenses']);
-        $sheet->getStyle("F{$row}")->getNumberFormat()->setFormatCode('#,##0');
-        $this->styleTotal($sheet, "A{$row}:G{$row}");
-
-        foreach (range('A', 'G') as $column) {
-            $sheet->getColumnDimension($column)->setAutoSize(true);
-        }
+        return $row;
     }
 
-    private function writeResumeSheet($sheet, array $totaux, string $from, string $to): void
+    private function writeCyclesSection($sheet, $cycles, int $row): int
     {
-        $sheet->setTitle('Résumé');
+        $sheet->setCellValue("A{$row}", '4. Cycles camion');
+        $sheet->getStyle("A{$row}")->getFont()->setBold(true)->setSize(14);
+        $row++;
 
-        $sheet->setCellValue('A1', 'Résumé de la période');
-        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(16);
-        $sheet->setCellValue('A2', 'Période : '.$from.' → '.$to);
-        $sheet->getStyle('A2')->getFont()->setColor(new Color('FF64748B'));
+        $headers = ['Début', 'Fin', 'Frais de route (FCFA)', 'Autres frais (FCFA)', 'Total (FCFA)'];
+        foreach ($headers as $col => $header) {
+            $column = chr(65 + $col);
+            $sheet->setCellValue("{$column}{$row}", $header);
+        }
+        $this->styleHeader($sheet, "A{$row}:E{$row}");
+        $row++;
+
+        foreach ($cycles as $cycle) {
+            $sheet->setCellValue("A{$row}", $cycle['date_debut']);
+            $sheet->setCellValue("B{$row}", $cycle['date_fin']);
+            $sheet->setCellValue("C{$row}", $cycle['frais_route']);
+            $sheet->setCellValue("D{$row}", $cycle['libres']);
+            $sheet->setCellValue("E{$row}", $cycle['total']);
+            foreach (['C', 'D', 'E'] as $column) {
+                $sheet->getStyle("{$column}{$row}")->getNumberFormat()->setFormatCode('#,##0');
+            }
+            $row++;
+        }
+
+        $sheet->setCellValue("D{$row}", 'Total frais des cycles');
+        $sheet->setCellValue("E{$row}", $cycles->sum('total'));
+        $sheet->getStyle("E{$row}")->getNumberFormat()->setFormatCode('#,##0');
+        $this->styleTotal($sheet, "A{$row}:E{$row}");
+        $row += 2;
+
+        return $row;
+    }
+
+    private function writeResumeSection($sheet, array $totaux, int $row): void
+    {
+        $sheet->setCellValue("A{$row}", '5. Résumé');
+        $sheet->getStyle("A{$row}")->getFont()->setBold(true)->setSize(14);
+        $row++;
 
         $rows = [
             'Poids total des achats' => $totaux['poids'].' kg',
             'Montant des achats' => number_format($totaux['montant_achats'], 0, ',', ' ').' FCFA',
-            'Total des charges' => number_format($totaux['charges_total'], 0, ',', ' ').' FCFA',
+            'Total des charges journalières' => number_format($totaux['charges_total'], 0, ',', ' ').' FCFA',
+            'Total frais des cycles camion' => number_format($totaux['cycles_total'], 0, ',', ' ').' FCFA',
             'Total des dépenses' => number_format($totaux['total_depenses'], 0, ',', ' ').' FCFA',
         ];
 
-        $row = 4;
         foreach ($rows as $label => $value) {
             $sheet->setCellValue("A{$row}", $label);
             $sheet->setCellValue("B{$row}", $value);
             $sheet->getStyle("A{$row}")->getFont()->setBold(true);
             $row++;
-        }
-
-        foreach (range('A', 'B') as $column) {
-            $sheet->getColumnDimension($column)->setAutoSize(true);
         }
     }
 
@@ -258,6 +281,7 @@ class ExportController extends Controller
             'to' => $to,
             'sources' => $data['sources'],
             'charges' => $data['charges'],
+            'cycles' => $data['cycles'],
             'totaux' => $data['totaux'],
         ]);
 
@@ -302,18 +326,42 @@ class ExportController extends Controller
             ];
         });
 
+        $cyclesModel = CycleCamion::with('fraisLibres')
+            ->where('date_debut', '<=', $to)
+            ->where(function ($query) use ($from): void {
+                $query->whereNull('date_fin')->orWhere('date_fin', '>=', $from);
+            })
+            ->orderBy('date_debut')
+            ->get();
+
+        $cycles = $cyclesModel->map(function (CycleCamion $cycle): array {
+            $fraisRoute = round((float) $cycle->frais_route, 2);
+            $libres = round((float) $cycle->fraisLibres->sum('montant'), 2);
+
+            return [
+                'date_debut' => $cycle->date_debut,
+                'date_fin' => $cycle->date_fin ?? '—',
+                'frais_route' => $fraisRoute,
+                'libres' => $libres,
+                'total' => round($fraisRoute + $libres, 2),
+            ];
+        });
+
         $montantAchats = round((float) $sources->flatMap(fn ($source) => $source->lignesAchats)->sum('prix'), 2);
         $poids = round((float) $sources->flatMap(fn ($source) => $source->lignesAchats)->sum('poids_kg'), 2);
         $chargesTotal = round((float) $charges->sum('total'), 2);
+        $cyclesTotal = round((float) $cycles->sum('total'), 2);
 
         return [
             'sources' => $sources,
             'charges' => $charges,
+            'cycles' => $cycles,
             'totaux' => [
                 'poids' => $poids,
                 'montant_achats' => $montantAchats,
                 'charges_total' => $chargesTotal,
-                'total_depenses' => round($montantAchats + $chargesTotal, 2),
+                'cycles_total' => $cyclesTotal,
+                'total_depenses' => round($montantAchats + $chargesTotal + $cyclesTotal, 2),
             ],
         ];
     }

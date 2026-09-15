@@ -144,11 +144,48 @@
                 </tr>
             @endforelse
             <tr class="total-row">
-                <td colspan="6">Total charges</td>
+                <td colspan="6">Total charges journalières</td>
                 <td class="right">{{ number_format($totaux['charges_total'], 0, ',', ' ') }}</td>
             </tr>
+        </tbody>
+    </table>
+
+    <div class="section-title">Cycles camion</div>
+    <table>
+        <thead>
+            <tr>
+                <th>Début</th>
+                <th>Fin</th>
+                <th class="right">Frais de route</th>
+                <th class="right">Autres frais</th>
+                <th class="right">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            @forelse ($cycles as $cycle)
+                <tr>
+                    <td>{{ $cycle['date_debut'] }}</td>
+                    <td>{{ $cycle['date_fin'] }}</td>
+                    <td class="right">{{ number_format($cycle['frais_route'], 0, ',', ' ') }}</td>
+                    <td class="right">{{ number_format($cycle['libres'], 0, ',', ' ') }}</td>
+                    <td class="right">{{ number_format($cycle['total'], 0, ',', ' ') }}</td>
+                </tr>
+            @empty
+                <tr>
+                    <td colspan="5">Aucun cycle camion sur la période.</td>
+                </tr>
+            @endforelse
+            <tr class="total-row">
+                <td colspan="4">Total frais des cycles camion</td>
+                <td class="right">{{ number_format($totaux['cycles_total'], 0, ',', ' ') }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <table>
+        <tbody>
             <tr class="grand-total">
-                <td colspan="6">Total dépenses</td>
+                <td colspan="6">Total dépenses (achats + charges + cycles)</td>
                 <td class="right">{{ number_format($totaux['total_depenses'], 0, ',', ' ') }}</td>
             </tr>
         </tbody>

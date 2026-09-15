@@ -13,6 +13,7 @@ Route::post('/login', [AuthController::class, 'login']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', [AuthController::class, 'user']);
+    Route::post('/change-password', [AuthController::class, 'changePassword']);
 
     Route::get('/achats/today', [AchatController::class, 'getTodayAchats']);
     Route::post('/achats', [AchatController::class, 'store']);

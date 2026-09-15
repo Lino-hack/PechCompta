@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, Loader2, Settings2, Tag } from 'lucide-react'
+import { Plus, Trash2, Loader2, Settings2, Tag, KeyRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import api from '@/lib/api'
 import { queryKeys, useParametres, useTypesPoisson } from '@/hooks/useApiHooks'
@@ -15,9 +15,99 @@ export default function Settings() {
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Réglages</h1>
         <p className="text-slate-500 dark:text-slate-400 mt-1">Types de poissons et paramètres de prix</p>
       </div>
+      <PasswordManager />
       <TypesPoissonManager />
       <ParametresManager />
     </div>
+  )
+}
+
+function PasswordManager() {
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
+
+  const mutation = useMutation({
+    mutationFn: async () =>
+      api.post('/change-password', {
+        current_password: currentPassword,
+        new_password: newPassword,
+        new_password_confirmation: confirmPassword,
+      }),
+    onSuccess: () => {
+      setSuccess(true)
+      setError(null)
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+      setTimeout(() => setSuccess(false), 3000)
+    },
+    onError: (err) => {
+      const axiosError = err as { response?: { data?: { message?: string } } }
+      setError(axiosError.response?.data?.message ?? 'Impossible de changer le mot de passe.')
+      setSuccess(false)
+    },
+  })
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (newPassword !== confirmPassword) {
+      setError('Les deux mots de passe ne correspondent pas.')
+      return
+    }
+    if (newPassword.length < 8) {
+      setError('Le nouveau mot de passe doit contenir au moins 8 caractères.')
+      return
+    }
+    setError(null)
+    mutation.mutate()
+  }
+
+  return (
+    <section className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+      <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2">
+        <KeyRound className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Sécurité</h2>
+      </div>
+      <div className="p-4">
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <input
+            type="password"
+            value={currentPassword}
+            onChange={(event) => setCurrentPassword(event.target.value)}
+            placeholder="Mot de passe actuel"
+            required
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-sky-500"
+          />
+          <input
+            type="password"
+            value={newPassword}
+            onChange={(event) => setNewPassword(event.target.value)}
+            placeholder="Nouveau mot de passe (min. 8 caractères)"
+            required
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-sky-500"
+          />
+          <input
+            type="password"
+            value={confirmPassword}
+            onChange={(event) => setConfirmPassword(event.target.value)}
+            placeholder="Confirmer le nouveau mot de passe"
+            required
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-sky-500"
+          />
+          <Button type="submit" disabled={mutation.isPending}>
+            {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            Mettre à jour
+          </Button>
+        </form>
+        {error !== null && <p className="mt-3 text-xs text-red-600 dark:text-red-400">{error}</p>}
+        {success && (
+          <p className="mt-3 text-xs text-emerald-600 dark:text-emerald-400">Mot de passe mis à jour ✓</p>
+        )}
+      </div>
+    </section>
   )
 }
 
