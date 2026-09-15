@@ -64,8 +64,13 @@ echo "   $(wc -l < /tmp/seqs.txt) séquences détectées."
 
 # ── 3. Restauration ──
 echo "[3/4] Restauration dans le VPS..."
-docker compose exec -T db psql -U peche -d peche -v ON_ERROR_STOP=0 --single-transaction -f /tmp/neon_dump.sql 2>&1 | tail -5 || true
-echo "   Restauration OK."
+# Le dump est sur l'HÔTE : on le pipe via stdin au psql du conteneur.
+if ! cat /tmp/neon_dump.sql | docker compose exec -T db psql -U peche -d peche \
+     -v ON_ERROR_STOP=0 --single-transaction > /tmp/restore.log 2>&1; then
+  echo "   ATTENTION : psql a renvoyé une erreur (voir log)."
+fi
+tail -5 /tmp/restore.log
+echo "   Restauration terminée."
 
 # ── 4. Reset des séquences ──
 echo "[4/4] Mise à jour des séquences..."
