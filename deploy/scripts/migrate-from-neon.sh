@@ -32,16 +32,18 @@ read -rp "Continuer ? (y/N) " CONFIRM
 # ── 1. Dump de Neon via un conteneur postgres jetable ──
 echo ""
 echo "[1/4] Dump de Neon..."
-# Neon tourne en Postgres 18 : on dê une 18 pour dumper (compat asc/desc)
+# Neon tourne en Postgres 18 : on dê une 18 pour dumper (compat asc/desc).
+# La sortie est redirigée vers un fichier HÔTE (le --rm détruirait le fichier conteneur).
 docker run --rm \
   -e PGPASSWORD="$NEON_PASS" \
   postgres:18 pg_dump \
   -h "$NEON_HOST" -p "$NEON_PORT" -U "$NEON_USER" -d "$NEON_DB" \
-  --no-owner --no-privileges --clean --if-exists \
-  -f /tmp/neon_dump.sql 2>&1
+  --no-owner --no-privileges --clean --if-exists > /tmp/neon_dump.sql 2>/tmp/neon_dump.err || { cat /tmp/neon_dump.err; echo "ERREUR : pg_dump a échoué."; exit 1; }
 # Échec réel du dump ?
 if [ ! -s /tmp/neon_dump.sql ]; then
   echo "ERREUR : dump Neon vide/absent — le pg_dump a échoué."
+  echo "--- stderr ---"
+  cat /tmp/neon_dump.err 2>/dev/null || true
   exit 1
 fi
 echo "   Dump OK ($(wc -c < /tmp/neon_dump.sql) octets)."
