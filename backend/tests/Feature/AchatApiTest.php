@@ -191,4 +191,16 @@ class AchatApiTest extends TestCase
 
         $this->assertCount(1, $response->json());
     }
+
+    public function test_get_today_excludes_sources_without_lignes(): void
+    {
+        SourceAchat::factory()->create(['date' => now()->toDateString()]);
+        $withLigne = SourceAchat::factory()->create(['date' => now()->toDateString()]);
+        LigneAchat::factory()->create(['source_achat_id' => $withLigne->id]);
+
+        $response = $this->getJson('/api/achats/today', $this->authHeaders())->assertOk();
+
+        $this->assertCount(1, $response->json());
+        $this->assertSame($withLigne->id, $response->json('0.id'));
+    }
 }

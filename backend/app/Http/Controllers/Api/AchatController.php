@@ -16,6 +16,7 @@ class AchatController extends Controller
         $today = date('Y-m-d');
         $achats = SourceAchat::with(['pecheur', 'detaillant', 'lignesAchats.typePoisson'])
             ->where('date', $today)
+            ->whereHas('lignesAchats')
             ->orderBy('id', 'desc')
             ->get();
 
