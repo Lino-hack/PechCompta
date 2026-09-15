@@ -2,7 +2,7 @@ services:
   - type: web
     name: pechcompta-backend
     runtime: docker
-    repo: https://github.com/VOTRE-COMPTE/VOTRE-DEPOT
+    repo: https://github.com/Lino-hack/PechCompta
     branch: main
     rootDir: backend
     plan: free
