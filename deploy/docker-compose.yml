@@ -46,11 +46,23 @@ services:
     volumes:
       - storage:/var/www/html/storage
 
+  adminer:
+    image: adminer:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ADMINER_PLUGINS: tables-filter
+    expose:
+      - "8080"
+
   web:
     image: caddy:2
     restart: unless-stopped
     depends_on:
       - backend
+      - adminer
     ports:
       - "80:80"
       - "443:443"

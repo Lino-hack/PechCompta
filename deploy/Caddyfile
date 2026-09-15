@@ -2,3 +2,8 @@
 	encode gzip
 	reverse_proxy backend:80
 }
+
+adminer.{$SSLIP_HOST} {
+	encode gzip
+	reverse_proxy adminer:8080
+}
