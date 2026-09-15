@@ -6,11 +6,13 @@ import { Button } from '@/components/ui/button'
 import api from '@/lib/api'
 import { formatMontant, todayISO } from '@/lib/format'
 import { queryKeys, useTodayCharges, useParametres } from '@/hooks/useApiHooks'
+import { useAuth } from '@/hooks/useAuth'
 import type { ChargeJournaliere, ChargeLibre, ParametrePrix } from '@/lib/types'
 
 export default function Charges() {
   const { data: charge, isLoading } = useTodayCharges()
   const { data: parametres } = useParametres()
+  const { canEdit } = useAuth()
 
   return (
     <div className="space-y-6">
@@ -24,13 +26,13 @@ export default function Charges() {
           Chargement…
         </section>
       ) : (
-        <ChargeForm charge={charge} parametres={parametres ?? []} />
+        <ChargeForm charge={charge} parametres={parametres ?? []} readOnly={!canEdit} />
       )}
     </div>
   )
 }
 
-function ChargeForm({ charge, parametres }: { charge: ChargeJournaliere | undefined; parametres: ParametrePrix[] }) {
+function ChargeForm({ charge, parametres, readOnly }: { charge: ChargeJournaliere | undefined; parametres: ParametrePrix[]; readOnly: boolean }) {
   const queryClient = useQueryClient()
 
   const prixBacDefaut = useMemo(
@@ -127,6 +129,7 @@ function ChargeForm({ charge, parametres }: { charge: ChargeJournaliere | undefi
               min="0"
               value={nbBacs}
               onChange={(event) => handleNbBacsChange(event.target.value)}
+              disabled={readOnly}
               className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2.5 outline-none focus:ring-2 focus:ring-sky-500"
             />
           </div>
@@ -141,6 +144,7 @@ function ChargeForm({ charge, parametres }: { charge: ChargeJournaliere | undefi
               min="0"
               value={prixBac}
               onChange={(event) => setPrixBac(event.target.value)}
+              disabled={readOnly}
               className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2.5 outline-none focus:ring-2 focus:ring-sky-500"
             />
           </div>
@@ -171,6 +175,7 @@ function ChargeForm({ charge, parametres }: { charge: ChargeJournaliere | undefi
             min="0"
             value={transport}
             onChange={(event) => { setTransport(event.target.value); setTransportManual(true) }}
+            disabled={readOnly}
             className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2.5 outline-none focus:ring-2 focus:ring-sky-500"
           />
         </div>
@@ -186,6 +191,7 @@ function ChargeForm({ charge, parametres }: { charge: ChargeJournaliere | undefi
             <input
               value={libelle}
               onChange={(event) => setLibelle(event.target.value)}
+              disabled={readOnly}
               placeholder="Libellé"
               className="rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-sky-500"
             />
@@ -195,12 +201,15 @@ function ChargeForm({ charge, parametres }: { charge: ChargeJournaliere | undefi
               min="0"
               value={montant}
               onChange={(event) => setMontant(event.target.value)}
+              disabled={readOnly}
               placeholder="Montant"
               className="w-28 rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-sky-500"
             />
-            <Button type="button" variant="secondary" size="icon" onClick={addLibre} aria-label="Ajouter la charge">
-              <Plus className="h-4 w-4" />
-            </Button>
+            {!readOnly && (
+              <Button type="button" variant="secondary" size="icon" onClick={addLibre} aria-label="Ajouter la charge">
+                <Plus className="h-4 w-4" />
+              </Button>
+            )}
           </div>
 
           {libres.length === 0 ? (
@@ -217,13 +226,15 @@ function ChargeForm({ charge, parametres }: { charge: ChargeJournaliere | undefi
                     <span className="text-sm font-semibold text-slate-900 dark:text-white">
                       {formatMontant(libre.montant)}
                     </span>
-                    <button
-                      onClick={() => removeLibre(index)}
-                      className="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
-                      aria-label="Retirer la charge"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    {!readOnly && (
+                      <button
+                        onClick={() => removeLibre(index)}
+                        className="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
+                        aria-label="Retirer la charge"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
                 </li>
               ))}
@@ -237,10 +248,12 @@ function ChargeForm({ charge, parametres }: { charge: ChargeJournaliere | undefi
           <p className="text-xs text-sky-600 dark:text-sky-400 font-medium">TOTAL DU JOUR</p>
           <p className="text-2xl font-bold text-slate-900 dark:text-white mt-0.5">{formatMontant(total)}</p>
         </div>
-        <Button type="submit" disabled={mutation.isPending} className="h-12 px-6 text-base font-semibold">
-          {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          {mutation.isPending ? 'Enregistrement…' : 'Enregistrer'}
-        </Button>
+        {!readOnly && (
+          <Button type="submit" disabled={mutation.isPending} className="h-12 px-6 text-base font-semibold">
+            {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {mutation.isPending ? 'Enregistrement…' : 'Enregistrer'}
+          </Button>
+        )}
       </section>
     </form>
   )

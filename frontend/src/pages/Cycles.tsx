@@ -7,11 +7,13 @@ import api from '@/lib/api'
 import { downloadExport } from '@/lib/export'
 import { formatMontant, formatDateFr, todayISO } from '@/lib/format'
 import { queryKeys, useCycles, useCycleDetails } from '@/hooks/useApiHooks'
+import { useAuth } from '@/hooks/useAuth'
 import type { CycleCamion } from '@/lib/types'
 
 export default function Cycles() {
   const { data: cycles, isLoading } = useCycles()
   const [selectedId, setSelectedId] = useState<number | null>(null)
+  const { canEdit } = useAuth()
 
   return (
     <div className="space-y-6">
@@ -20,7 +22,7 @@ export default function Cycles() {
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Cycles camion</h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1">Périodes de route et frais associés</p>
         </div>
-        <NewCycleButton />
+        {canEdit ? <NewCycleButton /> : null}
       </div>
 
       {isLoading ? (
@@ -175,6 +177,7 @@ function NewCycleButton() {
 function CycleDetail({ cycle }: { cycle: CycleCamion }) {
   const { data: details, isLoading } = useCycleDetails(cycle.id)
   const queryClient = useQueryClient()
+  const { canEdit } = useAuth()
 
   const [libelle, setLibelle] = useState('')
   const [montant, setMontant] = useState('')
@@ -290,7 +293,7 @@ function CycleDetail({ cycle }: { cycle: CycleCamion }) {
                     <span className="text-sm font-semibold text-slate-900 dark:text-white">
                       {formatMontant(frais.montant)}
                     </span>
-                    {cycle.statut === 'ouvert' && (
+                    {cycle.statut === 'ouvert' && canEdit && (
                       <button
                         onClick={() => deleteFraisMutation.mutate(frais.id)}
                         disabled={deleteFraisMutation.isPending}
@@ -305,7 +308,7 @@ function CycleDetail({ cycle }: { cycle: CycleCamion }) {
               ))}
             </ul>
           )}
-          {cycle.statut === 'ouvert' && (
+          {cycle.statut === 'ouvert' && canEdit && (
             <div className="flex flex-wrap items-end gap-2 pt-1">
               <div className="flex-1 min-w-32">
                 <label htmlFor="frais-libelle" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
@@ -353,7 +356,7 @@ function CycleDetail({ cycle }: { cycle: CycleCamion }) {
           <FileText className="h-4 w-4 text-red-600" />
           Exporter en PDF
         </Button>
-        {cycle.statut === 'ouvert' && (
+        {cycle.statut === 'ouvert' && canEdit && (
           <Button size="sm" variant="secondary" onClick={() => closeMutation.mutate()} disabled={closeMutation.isPending}>
             {closeMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
             Clôturer le cycle

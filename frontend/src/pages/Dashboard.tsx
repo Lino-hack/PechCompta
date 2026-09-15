@@ -20,15 +20,18 @@ import { Button } from '@/components/ui/button'
 import api from '@/lib/api'
 import { downloadExport } from '@/lib/export'
 import { queryKeys, useStats, useTodayAchats, useTypesPoisson, usePecheurs, useDetaillants } from '@/hooks/useApiHooks'
+import { useAuth } from '@/hooks/useAuth'
 import { formatMontantCourt, formatMontant, formatPoids, formatDateFr, todayISO } from '@/lib/format'
 import type { LigneAchat, SourceAchatType } from '@/lib/types'
 
 export default function Dashboard() {
+  const { canEdit } = useAuth()
+
   return (
     <div className="space-y-6">
       <Header />
       <Kpis />
-      <QuickAddForm />
+      {canEdit ? <QuickAddForm /> : null}
       <TodayList />
     </div>
   )
@@ -319,6 +322,7 @@ function QuickAddForm() {
 
 function TodayList() {
   const queryClient = useQueryClient()
+  const { canEdit } = useAuth()
   const { data: types } = useTypesPoisson()
   const { data: sources, isLoading } = useTodayAchats()
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -358,7 +362,9 @@ function TodayList() {
       <section className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-8 text-center">
         <Fish className="h-10 w-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
         <p className="text-slate-500 dark:text-slate-400">Aucun achat aujourd’hui</p>
-        <p className="text-sm text-slate-400 mt-1">Utilisez le formulaire ci-dessus pour commencer.</p>
+        <p className="text-sm text-slate-400 mt-1">
+          {canEdit ? 'Utilisez le formulaire ci-dessus pour commencer.' : 'Revenez plus tard pour consulter les achats.'}
+        </p>
       </section>
     )
   }
@@ -398,6 +404,7 @@ function TodayList() {
                     key={ligne.id}
                     ligne={ligne}
                     types={types ?? []}
+                    canEdit={canEdit}
                     isEditing={editingId === ligne.id}
                     isDeleting={deleteMutation.isPending}
                     isSaving={updateMutation.isPending && editingId === ligne.id}
@@ -419,6 +426,7 @@ function TodayList() {
 function LigneItem({
   ligne,
   types,
+  canEdit,
   isEditing,
   isDeleting,
   isSaving,
@@ -429,6 +437,7 @@ function LigneItem({
 }: {
   ligne: LigneAchat
   types: { id: number; nom: string }[]
+  canEdit: boolean
   isEditing: boolean
   isDeleting: boolean
   isSaving: boolean
@@ -520,22 +529,26 @@ function LigneItem({
       </div>
       <div className="flex items-center gap-1">
         <span className="text-sm font-semibold text-slate-900 dark:text-white">{formatMontant(ligne.prix)}</span>
-        <button
-          onClick={onEdit}
-          disabled={isDeleting}
-          className="p-1.5 rounded-md text-slate-400 hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950 transition-colors"
-          aria-label="Modifier la ligne"
-        >
-          <Pencil className="h-4 w-4" />
-        </button>
-        <button
-          onClick={onDelete}
-          disabled={isDeleting}
-          className="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
-          aria-label="Supprimer la ligne"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        {canEdit && (
+          <>
+            <button
+              onClick={onEdit}
+              disabled={isDeleting}
+              className="p-1.5 rounded-md text-slate-400 hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950 transition-colors"
+              aria-label="Modifier la ligne"
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
+            <button
+              onClick={onDelete}
+              disabled={isDeleting}
+              className="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
+              aria-label="Supprimer la ligne"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </>
+        )}
       </div>
     </li>
   )

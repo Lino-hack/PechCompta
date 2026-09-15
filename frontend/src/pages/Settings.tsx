@@ -5,6 +5,7 @@ import { Plus, Trash2, Loader2, Settings2, Tag, KeyRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import api from '@/lib/api'
 import { queryKeys, useParametres, useTypesPoisson } from '@/hooks/useApiHooks'
+import { useAuth } from '@/hooks/useAuth'
 import { formatNumber } from '@/lib/format'
 import type { ParametrePrix } from '@/lib/types'
 
@@ -114,6 +115,7 @@ function PasswordManager() {
 function TypesPoissonManager() {
   const { data: types, isLoading } = useTypesPoisson()
   const queryClient = useQueryClient()
+  const { canEdit } = useAuth()
   const [nom, setNom] = useState('')
   const [error, setError] = useState<string | null>(null)
 
@@ -165,7 +167,7 @@ function TypesPoissonManager() {
                     </span>
                   ) : null}
                 </span>
-                {!type.is_default && (
+                {!type.is_default && canEdit && (
                   <button
                     onClick={() => deleteMutation.mutate(type.id)}
                     disabled={deleteMutation.isPending}
@@ -180,18 +182,20 @@ function TypesPoissonManager() {
           </ul>
         )}
 
-        <form onSubmit={handleSubmit} className="flex gap-2">
-          <input
-            value={nom}
-            onChange={(event) => setNom(event.target.value)}
-            placeholder="Nouveau type de poisson"
-            className="flex-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-sky-500"
-          />
-          <Button type="submit" disabled={addMutation.isPending}>
-            {addMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-            Ajouter
-          </Button>
-        </form>
+        {canEdit ? (
+          <form onSubmit={handleSubmit} className="flex gap-2">
+            <input
+              value={nom}
+              onChange={(event) => setNom(event.target.value)}
+              placeholder="Nouveau type de poisson"
+              className="flex-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-sky-500"
+            />
+            <Button type="submit" disabled={addMutation.isPending}>
+              {addMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              Ajouter
+            </Button>
+          </form>
+        ) : null}
         {error !== null && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
       </div>
     </section>
@@ -200,6 +204,7 @@ function TypesPoissonManager() {
 
 function ParametresManager() {
   const { data: parametres, isLoading } = useParametres()
+  const { canEdit } = useAuth()
   const [values, setValues] = useState<Record<string, string>>({})
   const [saved, setSaved] = useState(false)
 
@@ -245,11 +250,14 @@ function ParametresManager() {
                   onChange={(event) =>
                     setValues((current) => ({ ...current, [parametre.nom]: event.target.value }))
                   }
-                  className="w-28 rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm text-right outline-none focus:ring-2 focus:ring-sky-500"
+                  disabled={!canEdit}
+                  className="w-28 rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm text-right outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-60"
                 />
-                <Button size="sm" onClick={() => mutation.mutate(parametre)} disabled={mutation.isPending}>
-                  {saved && mutation.isSuccess ? '✓' : 'Enregistrer'}
-                </Button>
+                {canEdit && (
+                  <Button size="sm" onClick={() => mutation.mutate(parametre)} disabled={mutation.isPending}>
+                    {saved && mutation.isSuccess ? '✓' : 'Enregistrer'}
+                  </Button>
+                )}
               </div>
             </div>
           ))

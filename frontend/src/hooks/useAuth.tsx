@@ -8,6 +8,7 @@ interface AuthContextValue {
   token: string | null
   isAuthenticated: boolean
   isLoading: boolean
+  canEdit: boolean
   login: (email: string, password: string) => Promise<void>
   logout: () => void
 }
@@ -65,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         token,
         isAuthenticated: user !== null,
         isLoading,
+        canEdit: user?.role === 'admin',
         login,
         logout,
       }}

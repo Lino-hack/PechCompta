@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureCanEdit;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -16,6 +17,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->redirectGuestsTo(
             fn (Request $request) => abort(401, 'Unauthenticated'),
         );
+        $middleware->alias([
+            'can-edit' => EnsureCanEdit::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

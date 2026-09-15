@@ -28,7 +28,7 @@ function ThemeToggle() {
 }
 
 export default function AppLayout() {
-  const { logout, user } = useAuth()
+  const { logout, user, canEdit } = useAuth()
   const navigate = useNavigate()
 
   function handleLogout() {
@@ -56,6 +56,11 @@ export default function AppLayout() {
           <div className="flex items-center justify-between">
             <div className="min-w-0">
               <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{user?.name}</p>
+              {!canEdit && (
+                <span className="inline-block mt-0.5 text-[10px] uppercase tracking-wide bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 rounded px-1.5 py-0.5">
+                  Lecture seule
+                </span>
+              )}
               <p className="text-xs text-slate-400 truncate">{user?.email}</p>
             </div>
             <ThemeToggle />
