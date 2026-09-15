@@ -5,9 +5,13 @@ RUN a2enmod rewrite headers
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libpq-dev libzip-dev unzip git \
     && docker-php-ext-install pdo_pgsql \
-    && docker-php-ext-install opcache \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+RUN set -eux; \
+    if ls /usr/local/lib/php/extensions/*/opcache.so >/dev/null 2>&1; then \
+        printf 'zend_extension=opcache\n' > /usr/local/etc/php/conf.d/docker-php-ext-opcache.ini; \
+    fi
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
