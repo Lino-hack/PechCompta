@@ -32,10 +32,15 @@ read -rp "Continuer ? (y/N) " CONFIRM
 # ── 1. Dump de Neon via le conteneur db ──
 echo ""
 echo "[1/4] Dump de Neon..."
-docker compose exec -T db pg_dump \
+docker compose exec -T db env PGPASSWORD="$NEON_PASS" pg_dump \
   -h "$NEON_HOST" -p "$NEON_PORT" -U "$NEON_USER" -d "$NEON_DB" \
   --no-owner --no-privileges --clean --if-exists \
   -f /tmp/neon_dump.sql 2>&1 | grep -iv "^password" || true
+# Échec réel du dump ?
+if ! docker compose exec -T db test -s /tmp/neon_dump.sql >/dev/null 2>&1; then
+  echo "ERREUR : dump Neon vide/absent — le pg_dump a échoué."
+  exit 1
+fi
 echo "   Dump OK."
 
 # ── 2. Séquences MAX (avant écrasement) ──
