@@ -7,7 +7,7 @@ set -euo pipefail
 #  Garde les 30 derniers jours.
 #
 #  Usage:  bash scripts/backup.sh
-#  Planifié : cron chaque dimanche à 03:00 (voir install-backup-cron.sh).
+#  Planifié : cron chaque jour à 03:00 (voir install-backup-cron.sh).
 # ──────────────────────────────────────────────────
 
 DEPLOY_DIR="$(cd "$(dirname "$0")/.." && pwd)"
