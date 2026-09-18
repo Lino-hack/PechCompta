@@ -9,7 +9,7 @@ class LigneAchat extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['source_achat_id', 'type_poisson_id', 'poids_kg', 'prix'];
+    protected $fillable = ['source_achat_id', 'type_poisson_id', 'poids_kg', 'prix', 'heure'];
 
     public function sourceAchat()
     {

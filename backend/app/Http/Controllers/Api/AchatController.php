@@ -31,6 +31,7 @@ class AchatController extends Controller
             'type_poisson_id' => 'required|exists:type_poissons,id',
             'poids_kg' => 'required|numeric|min:0',
             'prix' => 'required|numeric|min:0',
+            'heure' => 'nullable|date_format:H:i',
         ]);
 
         $today = date('Y-m-d');
@@ -59,6 +60,7 @@ class AchatController extends Controller
             'type_poisson_id' => $validated['type_poisson_id'],
             'poids_kg' => $validated['poids_kg'],
             'prix' => $validated['prix'],
+            'heure' => $validated['heure'] ?? now()->format('H:i'),
         ]);
 
         return response()->json($ligne->load('typePoisson', 'sourceAchat.pecheur', 'sourceAchat.detaillant'), 201);
@@ -70,6 +72,7 @@ class AchatController extends Controller
             'type_poisson_id' => 'required|exists:type_poissons,id',
             'poids_kg' => 'required|numeric|min:0',
             'prix' => 'required|numeric|min:0',
+            'heure' => 'nullable|date_format:H:i',
         ]);
 
         $ligne = LigneAchat::findOrFail($id);

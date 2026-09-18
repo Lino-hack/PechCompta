@@ -33,3 +33,10 @@ export function todayISO(): string {
   const offset = now.getTimezoneOffset()
   return new Date(now.getTime() - offset * 60000).toISOString().slice(0, 10)
 }
+
+export function formatHeureFr(heure: string | null | undefined): string {
+  if (!heure) {
+    return ''
+  }
+  return heure.slice(0, 5).replace(':', 'h')
+}

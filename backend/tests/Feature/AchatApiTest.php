@@ -203,4 +203,63 @@ class AchatApiTest extends TestCase
         $this->assertCount(1, $response->json());
         $this->assertSame($withLigne->id, $response->json('0.id'));
     }
+
+    public function test_achat_defaults_heure_to_current_time(): void
+    {
+        $type = TypePoisson::factory()->create();
+
+        $response = $this->postJson('/api/achats', [
+            'type' => 'pirogue',
+            'nom' => 'Moussa Diop',
+            'type_poisson_id' => $type->id,
+            'poids_kg' => 10,
+            'prix' => 20000,
+        ], $this->authHeaders());
+
+        $response->assertStatus(201)
+            ->assertJsonPath('heure', now()->format('H:i'));
+    }
+
+    public function test_achat_accepts_custom_heure(): void
+    {
+        $type = TypePoisson::factory()->create();
+
+        $response = $this->postJson('/api/achats', [
+            'type' => 'pirogue',
+            'nom' => 'Moussa Diop',
+            'type_poisson_id' => $type->id,
+            'poids_kg' => 10,
+            'prix' => 20000,
+            'heure' => '07:30',
+        ], $this->authHeaders());
+
+        $response->assertStatus(201)
+            ->assertJsonPath('heure', '07:30');
+    }
+
+    public function test_achat_rejects_invalid_heure(): void
+    {
+        $this->postJson('/api/achats', [
+            'type' => 'pirogue',
+            'nom' => 'Moussa Diop',
+            'type_poisson_id' => TypePoisson::factory()->create()->id,
+            'poids_kg' => 10,
+            'prix' => 20000,
+            'heure' => '99:99',
+        ], $this->authHeaders())->assertUnprocessable();
+    }
+
+    public function test_update_ligne_modifies_heure(): void
+    {
+        $ligne = LigneAchat::factory()->create(['heure' => '08:00:00']);
+
+        $this->putJson('/api/achats/lignes/'.$ligne->id, [
+            'type_poisson_id' => $ligne->type_poisson_id,
+            'poids_kg' => 30,
+            'prix' => 60000,
+            'heure' => '14:00',
+        ], $this->authHeaders())
+            ->assertOk()
+            ->assertJsonPath('heure', '14:00');
+    }
 }

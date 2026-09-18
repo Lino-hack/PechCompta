@@ -21,7 +21,7 @@ import api from '@/lib/api'
 import { downloadExport } from '@/lib/export'
 import { queryKeys, useStats, useTodayAchats, useTypesPoisson, usePecheurs, useDetaillants } from '@/hooks/useApiHooks'
 import { useAuth } from '@/hooks/useAuth'
-import { formatMontantCourt, formatMontant, formatPoids, formatDateFr, todayISO } from '@/lib/format'
+import { formatMontantCourt, formatMontant, formatPoids, formatHeureFr, formatDateFr, todayISO } from '@/lib/format'
 import type { LigneAchat, SourceAchatType } from '@/lib/types'
 
 export default function Dashboard() {
@@ -148,6 +148,7 @@ function QuickAddForm() {
   const [typePoissonId, setTypePoissonId] = useState('')
   const [poidsKg, setPoidsKg] = useState('')
   const [prix, setPrix] = useState('')
+  const [heure, setHeure] = useState(() => new Date().toTimeString().slice(0, 5))
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -172,6 +173,7 @@ function QuickAddForm() {
         type_poisson_id: typePoissonId,
         poids_kg: poidsKg,
         prix,
+        heure: heure || undefined,
       })
       return response.data
     },
@@ -251,7 +253,7 @@ function QuickAddForm() {
           </datalist>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="col-span-2 sm:col-span-1">
             <label htmlFor="type-poisson" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
               Poisson
@@ -299,6 +301,18 @@ function QuickAddForm() {
               onChange={(event) => setPrix(event.target.value)}
               className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2.5 text-base outline-none focus:ring-2 focus:ring-sky-500"
               placeholder="0"
+            />
+          </div>
+          <div>
+            <label htmlFor="heure" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+              Heure
+            </label>
+            <input
+              id="heure"
+              type="time"
+              value={heure}
+              onChange={(event) => setHeure(event.target.value)}
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2.5 text-base outline-none focus:ring-2 focus:ring-sky-500"
             />
           </div>
         </div>
@@ -449,6 +463,7 @@ function LigneItem({
   const [typePoissonId, setTypePoissonId] = useState(String(ligne.type_poisson_id ?? ''))
   const [poidsKg, setPoidsKg] = useState(String(ligne.poids_kg ?? ''))
   const [prix, setPrix] = useState(String(ligne.prix ?? ''))
+  const [heure, setHeure] = useState(ligne.heure ? String(ligne.heure).slice(0, 5) : '')
   const [error, setError] = useState<string | null>(null)
 
   function handleSave() {
@@ -460,13 +475,14 @@ function LigneItem({
       type_poisson_id: typePoissonId,
       poids_kg: poidsKg,
       prix,
+      heure,
     })
   }
 
   if (isEditing) {
     return (
       <li className="rounded-lg bg-sky-50 dark:bg-slate-800/50 px-3 py-2">
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <div className="col-span-2 sm:col-span-1">
             <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Poisson</label>
             <select
@@ -505,6 +521,15 @@ function LigneItem({
               className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-sky-500"
             />
           </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Heure</label>
+            <input
+              type="time"
+              value={heure}
+              onChange={(event) => setHeure(event.target.value)}
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-sky-500"
+            />
+          </div>
         </div>
         {error !== null && <p className="text-xs text-red-600 dark:text-red-400 mt-2">{error}</p>}
         <div className="flex justify-end gap-2 mt-2">
@@ -525,7 +550,10 @@ function LigneItem({
     <li className="flex items-center justify-between rounded-lg bg-slate-50 dark:bg-slate-800/50 px-3 py-2">
       <div>
         <p className="text-sm text-slate-800 dark:text-slate-200">{ligne.type_poisson?.nom ?? '—'}</p>
-        <p className="text-xs text-slate-400">{formatPoids(ligne.poids_kg)}</p>
+        <p className="text-xs text-slate-400">
+          {formatHeureFr(ligne.heure) ? `${formatHeureFr(ligne.heure)} · ` : ''}
+          {formatPoids(ligne.poids_kg)}
+        </p>
       </div>
       <div className="flex items-center gap-1">
         <span className="text-sm font-semibold text-slate-900 dark:text-white">{formatMontant(ligne.prix)}</span>

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\ChargeJournaliere;
 use App\Models\CycleCamion;
+use App\Models\LigneAchat;
 use App\Models\SourceAchat;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
@@ -22,6 +23,8 @@ class ExportController extends Controller
             'from' => 'nullable|date',
             'to' => 'nullable|date|after_or_equal:from',
             'include_cycles' => 'nullable|in:0,1,true,false',
+            'cycle_heure_debut' => 'nullable|date_format:H:i',
+            'cycle_heure_fin' => 'nullable|date_format:H:i',
         ]);
 
         $today = now()->toDateString();
@@ -30,13 +33,22 @@ class ExportController extends Controller
             'from' => $validated['from'] ?? $today,
             'to' => $validated['to'] ?? $today,
             'include_cycles' => filter_var($validated['include_cycles'] ?? '1', FILTER_VALIDATE_BOOLEAN),
+            'heure_debut' => $validated['cycle_heure_debut'] ?? null,
+            'heure_fin' => $validated['cycle_heure_fin'] ?? null,
         ];
     }
 
     public function exportExcel(Request $request)
     {
-        ['from' => $from, 'to' => $to, 'include_cycles' => $includeCycles] = $this->period($request);
-        $data = $this->reportData($from, $to, $includeCycles);
+        [
+            'from' => $from,
+            'to' => $to,
+            'include_cycles' => $includeCycles,
+            'heure_debut' => $heureDebut,
+            'heure_fin' => $heureFin,
+        ] = $this->period($request);
+
+        $data = $this->reportData($from, $to, $includeCycles, $heureDebut, $heureFin);
 
         $spreadsheet = new Spreadsheet;
         $sheet = $spreadsheet->getActiveSheet();
@@ -248,8 +260,15 @@ class ExportController extends Controller
 
     public function exportPdf(Request $request)
     {
-        ['from' => $from, 'to' => $to, 'include_cycles' => $includeCycles] = $this->period($request);
-        $data = $this->reportData($from, $to, $includeCycles);
+        [
+            'from' => $from,
+            'to' => $to,
+            'include_cycles' => $includeCycles,
+            'heure_debut' => $heureDebut,
+            'heure_fin' => $heureFin,
+        ] = $this->period($request);
+
+        $data = $this->reportData($from, $to, $includeCycles, $heureDebut, $heureFin);
 
         $pdf = Pdf::loadView('exports.rapport', [
             'from' => $from,
@@ -264,7 +283,7 @@ class ExportController extends Controller
         return $pdf->download('rapport-achats-'.$from.'-'.$to.'.pdf');
     }
 
-    public function reportData(string $from, string $to, bool $includeCycles): array
+    public function reportData(string $from, string $to, bool $includeCycles, ?string $heureDebut = null, ?string $heureFin = null): array
     {
         $sources = SourceAchat::with(['pecheur', 'detaillant', 'lignesAchats.typePoisson'])
             ->whereBetween('date', [$from, $to])
@@ -280,6 +299,23 @@ class ExportController extends Controller
 
             return [$source->date, $source->type === 'pirogue' ? 0 : 1, $nom];
         })->values();
+
+        if ($heureDebut !== null || $heureFin !== null) {
+            $boundDebut = $from.' '.(($this->heureSec($heureDebut)) ?: '00:00:00');
+            $boundFin = $to.' '.(($this->heureSec($heureFin)) ?: '23:59:59');
+
+            $sources = $sources
+                ->map(function (SourceAchat $source) use ($boundDebut, $boundFin): SourceAchat {
+                    $source->setRelation('lignesAchats', $source->lignesAchats->filter(
+                        fn (LigneAchat $ligne) => $source->date.' '.$this->heureSec($ligne->heure) >= $boundDebut
+                            && $source->date.' '.$this->heureSec($ligne->heure) <= $boundFin
+                    )->values());
+
+                    return $source;
+                })
+                ->filter(fn (SourceAchat $source) => $source->lignesAchats->isNotEmpty())
+                ->values();
+        }
 
         $chargesModel = ChargeJournaliere::with('chargesLibres')
             ->whereBetween('date', [$from, $to])
@@ -317,8 +353,10 @@ class ExportController extends Controller
             $libres = round((float) $cycle->fraisLibres->sum('montant'), 2);
 
             return [
-                'date_debut' => $cycle->date_debut,
-                'date_fin' => $cycle->date_fin ?? '—',
+                'date_debut' => $cycle->heure_debut ? $cycle->date_debut.' '.substr($cycle->heure_debut, 0, 5) : $cycle->date_debut,
+                'date_fin' => $cycle->date_fin
+                    ? ($cycle->heure_fin ? $cycle->date_fin.' '.substr($cycle->heure_fin, 0, 5) : $cycle->date_fin)
+                    : '—',
                 'frais_route' => $fraisRoute,
                 'libres' => $libres,
                 'total' => round($fraisRoute + $libres, 2),
@@ -342,5 +380,14 @@ class ExportController extends Controller
                 'total_depenses' => round($montantAchats + $chargesTotal + $cyclesTotal, 2),
             ],
         ];
+    }
+
+    private function heureSec(?string $heure): string
+    {
+        if ($heure === null || $heure === '') {
+            return '00:00:00';
+        }
+
+        return strlen($heure) === 5 ? $heure.':00' : $heure;
     }
 }

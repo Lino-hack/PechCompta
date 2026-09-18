@@ -9,7 +9,7 @@ class CycleCamion extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['date_debut', 'date_fin', 'frais_route', 'statut'];
+    protected $fillable = ['date_debut', 'date_fin', 'heure_debut', 'heure_fin', 'frais_route', 'statut'];
 
     public function fraisLibres()
     {

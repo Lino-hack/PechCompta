@@ -229,4 +229,155 @@ class CycleApiTest extends TestCase
         $this->assertStringContainsString($cycle->date_debut, $content);
         $this->assertStringContainsString($cycle->date_fin, $content);
     }
+
+    public function test_cycle_create_stores_heures(): void
+    {
+        $response = $this->postJson('/api/cycles', [
+            'date_debut' => now()->toDateString(),
+            'date_fin' => now()->toDateString(),
+            'heure_debut' => '06:00',
+            'heure_fin' => '13:00',
+        ], $this->authHeaders());
+
+        $response->assertCreated();
+
+        $this->assertStringStartsWith('06:00', (string) $response->json('heure_debut'));
+        $this->assertStringStartsWith('13:00', (string) $response->json('heure_fin'));
+    }
+
+    public function test_update_cycle_updates_heures(): void
+    {
+        $cycle = CycleCamion::factory()->create([
+            'date_debut' => now()->toDateString(),
+            'date_fin' => null,
+            'statut' => 'ouvert',
+        ]);
+
+        $response = $this->putJson('/api/cycles/'.$cycle->id, [
+            'date_debut' => now()->toDateString(),
+            'heure_debut' => '05:00',
+            'heure_fin' => '13:00',
+        ], $this->authHeaders());
+
+        $response->assertOk();
+        $this->assertStringStartsWith('05:00', (string) $response->json('heure_debut'));
+        $this->assertStringStartsWith('13:00', (string) $response->json('heure_fin'));
+    }
+
+    public function test_cycle_details_excludes_lignes_after_heure_fin(): void
+    {
+        $cycle = CycleCamion::factory()->create([
+            'date_debut' => now()->toDateString(),
+            'date_fin' => now()->toDateString(),
+            'heure_debut' => '06:00',
+            'heure_fin' => '13:00',
+            'statut' => 'cloture',
+        ]);
+
+        $source = SourceAchat::factory()->create(['date' => now()->toDateString()]);
+        LigneAchat::factory()->create(['source_achat_id' => $source->id, 'poids_kg' => 10, 'prix' => 10000, 'heure' => '10:00:00']);
+        LigneAchat::factory()->create(['source_achat_id' => $source->id, 'poids_kg' => 5, 'prix' => 5000, 'heure' => '15:00:00']);
+
+        $response = $this->getJson('/api/cycles/'.$cycle->id, $this->authHeaders())->assertOk();
+
+        $this->assertCount(1, $response->json('achats'));
+        $this->assertCount(1, $response->json('achats.0.lignes_achats'));
+
+        $montant = collect($response->json('achats'))
+            ->flatMap(fn ($source) => $source['lignes_achats'])
+            ->sum('prix');
+        $this->assertSame(10000.0, (float) $montant);
+    }
+
+    public function test_cycle_details_excludes_lignes_before_heure_debut(): void
+    {
+        $cycle = CycleCamion::factory()->create([
+            'date_debut' => now()->toDateString(),
+            'date_fin' => now()->toDateString(),
+            'heure_debut' => '08:00',
+            'heure_fin' => '13:00',
+            'statut' => 'cloture',
+        ]);
+
+        $source = SourceAchat::factory()->create(['date' => now()->toDateString()]);
+        LigneAchat::factory()->create(['source_achat_id' => $source->id, 'poids_kg' => 10, 'prix' => 10000, 'heure' => '07:00:00']);
+        LigneAchat::factory()->create(['source_achat_id' => $source->id, 'poids_kg' => 5, 'prix' => 5000, 'heure' => '09:00:00']);
+
+        $response = $this->getJson('/api/cycles/'.$cycle->id, $this->authHeaders())->assertOk();
+
+        $montant = collect($response->json('achats'))
+            ->flatMap(fn ($source) => $source['lignes_achats'])
+            ->sum('prix');
+        $this->assertSame(5000.0, (float) $montant);
+    }
+
+    public function test_cycle_details_includes_boundary_heure(): void
+    {
+        $cycle = CycleCamion::factory()->create([
+            'date_debut' => now()->toDateString(),
+            'date_fin' => now()->toDateString(),
+            'heure_debut' => '06:00',
+            'heure_fin' => '13:00',
+            'statut' => 'cloture',
+        ]);
+
+        $source = SourceAchat::factory()->create(['date' => now()->toDateString()]);
+        LigneAchat::factory()->create(['source_achat_id' => $source->id, 'poids_kg' => 10, 'prix' => 10000, 'heure' => '13:00:00']);
+
+        $response = $this->getJson('/api/cycles/'.$cycle->id, $this->authHeaders())->assertOk();
+
+        $this->assertCount(1, $response->json('achats'));
+        $this->assertSame((float) 10000.0, (float) collect($response->json('achats'))
+            ->flatMap(fn ($source) => $source['lignes_achats'])
+            ->sum('prix'));
+    }
+
+    public function test_cycle_details_includes_legacy_lignes_without_heure(): void
+    {
+        $cycle = CycleCamion::factory()->create([
+            'date_debut' => now()->subDays(2)->toDateString(),
+            'date_fin' => now()->toDateString(),
+            'heure_fin' => '13:00',
+            'statut' => 'cloture',
+        ]);
+
+        $source = SourceAchat::factory()->create(['date' => now()->toDateString()]);
+        LigneAchat::factory()->create(['source_achat_id' => $source->id, 'poids_kg' => 10, 'prix' => 10000, 'heure' => null]);
+
+        $response = $this->getJson('/api/cycles/'.$cycle->id, $this->authHeaders())->assertOk();
+
+        $this->assertCount(1, $response->json('achats'));
+    }
+
+    public function test_cycle_export_excludes_lignes_after_heure_fin(): void
+    {
+        $cycle = CycleCamion::factory()->create([
+            'date_debut' => now()->toDateString(),
+            'date_fin' => now()->toDateString(),
+            'heure_fin' => '13:00',
+            'statut' => 'cloture',
+        ]);
+
+        $typeMatin = TypePoisson::factory()->create(['nom' => 'Sole']);
+        $typeApres = TypePoisson::factory()->create(['nom' => 'Daurade']);
+
+        $source = SourceAchat::factory()->create(['date' => now()->toDateString()]);
+        LigneAchat::factory()->create(['source_achat_id' => $source->id, 'type_poisson_id' => $typeMatin->id, 'poids_kg' => 10, 'prix' => 10000, 'heure' => '10:00:00']);
+        LigneAchat::factory()->create(['source_achat_id' => $source->id, 'type_poisson_id' => $typeApres->id, 'poids_kg' => 5, 'prix' => 5000, 'heure' => '15:00:00']);
+
+        $response = $this->get('/api/cycles/'.$cycle->id.'/export', $this->authHeaders());
+        $response->assertOk();
+
+        $file = $response->baseResponse->getFile();
+        $spreadsheet = IOFactory::load($file->getPathname());
+        unlink($file->getPathname());
+
+        $content = implode("\n", array_map(
+            fn (array $row) => implode(' | ', $row),
+            $spreadsheet->getActiveSheet()->toArray()
+        ));
+
+        $this->assertStringContainsString('Sole', $content);
+        $this->assertStringNotContainsString('Daurade', $content);
+    }
 }

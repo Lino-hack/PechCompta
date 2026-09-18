@@ -36,6 +36,7 @@ export interface LigneAchat {
   type_poisson_id: number
   poids_kg: number | string
   prix: number | string
+  heure?: string | null
   type_poisson?: TypePoisson
   source_achat?: SourceAchat
 }
@@ -78,6 +79,8 @@ export interface CycleCamion {
   id: number
   date_debut: string
   date_fin: string | null
+  heure_debut?: string | null
+  heure_fin?: string | null
   frais_route: number | string
   statut: 'ouvert' | 'cloture'
   frais_libres?: CycleFraisLibre[]

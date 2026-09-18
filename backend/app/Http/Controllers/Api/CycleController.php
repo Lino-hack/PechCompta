@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\ChargeJournaliere;
 use App\Models\CycleCamion;
+use App\Models\LigneAchat;
 use App\Models\SourceAchat;
 use Illuminate\Http\Request;
 
@@ -18,6 +19,8 @@ class CycleController extends Controller
             'from' => $cycle->date_debut,
             'to' => $cycle->date_fin ?? now()->toDateString(),
             'include_cycles' => 1,
+            'cycle_heure_debut' => $cycle->heure_debut,
+            'cycle_heure_fin' => $cycle->heure_fin,
         ]);
 
         $export = new ExportController;
@@ -37,6 +40,8 @@ class CycleController extends Controller
         $validated = $request->validate([
             'date_debut' => 'required|date',
             'date_fin' => 'nullable|date|after_or_equal:date_debut',
+            'heure_debut' => 'nullable|date_format:H:i',
+            'heure_fin' => 'nullable|date_format:H:i',
             'frais_route' => 'numeric|min:0',
             'frais_libres' => 'nullable|array',
             'frais_libres.*.libelle' => 'required|string',
@@ -46,6 +51,8 @@ class CycleController extends Controller
         $cycle = CycleCamion::create([
             'date_debut' => $validated['date_debut'],
             'date_fin' => $validated['date_fin'] ?? null,
+            'heure_debut' => $validated['heure_debut'] ?? null,
+            'heure_fin' => $validated['heure_fin'] ?? null,
             'frais_route' => $validated['frais_route'] ?? 0,
             'statut' => 'ouvert',
         ]);
@@ -62,6 +69,8 @@ class CycleController extends Controller
         $validated = $request->validate([
             'date_debut' => 'required|date',
             'date_fin' => 'nullable|date|after_or_equal:date_debut',
+            'heure_debut' => 'nullable|date_format:H:i',
+            'heure_fin' => 'nullable|date_format:H:i',
             'frais_route' => 'numeric|min:0',
             'frais_libres' => 'nullable|array',
             'frais_libres.*.libelle' => 'required|string',
@@ -71,6 +80,8 @@ class CycleController extends Controller
         $cycle->update([
             'date_debut' => $validated['date_debut'],
             'date_fin' => $validated['date_fin'] ?? null,
+            'heure_debut' => $validated['heure_debut'] ?? null,
+            'heure_fin' => $validated['heure_fin'] ?? null,
             'frais_route' => $validated['frais_route'] ?? $cycle->frais_route,
         ]);
 
@@ -151,9 +162,23 @@ class CycleController extends Controller
     {
         $cycle = CycleCamion::findOrFail($id);
         $dateFin = $cycle->date_fin ?? now()->toDateString();
+        $debut = $cycle->date_debut.' '.(($this->heureSec($cycle->heure_debut)) ?: '00:00:00');
+        $fin = $dateFin.' '.(($this->heureSec($cycle->heure_fin)) ?: '23:59:59');
+
         $achats = SourceAchat::with(['pecheur', 'detaillant', 'lignesAchats.typePoisson'])
             ->whereBetween('date', [$cycle->date_debut, $dateFin])
-            ->get();
+            ->get()
+            ->map(function (SourceAchat $source) use ($debut, $fin): SourceAchat {
+                $source->setRelation('lignesAchats', $source->lignesAchats->filter(
+                    fn (LigneAchat $ligne) => $source->date.' '.$this->heureSec($ligne->heure) >= $debut
+                        && $source->date.' '.$this->heureSec($ligne->heure) <= $fin
+                )->values());
+
+                return $source;
+            })
+            ->filter(fn (SourceAchat $source) => $source->lignesAchats->isNotEmpty())
+            ->values();
+
         $charges = ChargeJournaliere::with('chargesLibres')
             ->whereBetween('date', [$cycle->date_debut, $dateFin])
             ->get();
@@ -163,5 +188,14 @@ class CycleController extends Controller
             'achats' => $achats,
             'charges' => $charges,
         ]);
+    }
+
+    private function heureSec(?string $heure): string
+    {
+        if ($heure === null || $heure === '') {
+            return '00:00:00';
+        }
+
+        return strlen($heure) === 5 ? $heure.':00' : $heure;
     }
 }

@@ -5,7 +5,7 @@ import { Truck, Plus, Loader2, ChevronDown, ChevronUp, Lock, FileSpreadsheet, Fi
 import { Button } from '@/components/ui/button'
 import api from '@/lib/api'
 import { downloadExport } from '@/lib/export'
-import { formatMontant, formatDateFr, todayISO } from '@/lib/format'
+import { formatMontant, formatDateFr, formatHeureFr, todayISO } from '@/lib/format'
 import { queryKeys, useCycles, useCycleDetails } from '@/hooks/useApiHooks'
 import { useAuth } from '@/hooks/useAuth'
 import type { CycleCamion } from '@/lib/types'
@@ -56,7 +56,10 @@ export default function Cycles() {
                     <div>
                       <p className="font-medium text-slate-900 dark:text-white text-sm">
                         Du {formatDateFr(cycle.date_debut)}
-                        {cycle.date_fin ? ` au ${formatDateFr(cycle.date_fin)}` : ' (en cours)'}
+                        {formatHeureFr(cycle.heure_debut) ? ` ${formatHeureFr(cycle.heure_debut)}` : ''}
+                        {cycle.date_fin
+                          ? ` au ${formatDateFr(cycle.date_fin)}${formatHeureFr(cycle.heure_fin) ? ` ${formatHeureFr(cycle.heure_fin)}` : ''}`
+                          : ' (en cours)'}
                       </p>
                       <p className="text-xs text-slate-400">
                         {cycle.statut === 'ouvert' ? 'Cycle ouvert' : 'Cycle clôturé'} · Frais de route : {formatMontant(cycle.frais_route)}
@@ -80,6 +83,8 @@ function NewCycleButton() {
   const [open, setOpen] = useState(false)
   const [dateDebut, setDateDebut] = useState(todayISO())
   const [dateFin, setDateFin] = useState('')
+  const [heureDebut, setHeureDebut] = useState('')
+  const [heureFin, setHeureFin] = useState('')
   const [fraisRoute, setFraisRoute] = useState('')
   const [error, setError] = useState<string | null>(null)
 
@@ -88,6 +93,8 @@ function NewCycleButton() {
       const response = await api.post('/cycles', {
         date_debut: dateDebut,
         date_fin: dateFin || null,
+        heure_debut: heureDebut || null,
+        heure_fin: heureFin || null,
         frais_route: fraisRoute || 0,
       })
       return response.data
@@ -95,6 +102,8 @@ function NewCycleButton() {
     onSuccess: () => {
       setOpen(false)
       setDateFin('')
+      setHeureDebut('')
+      setHeureFin('')
       setFraisRoute('')
       setError(null)
       queryClient.invalidateQueries({ queryKey: queryKeys.cycles })
@@ -145,6 +154,32 @@ function NewCycleButton() {
           className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-sky-500"
         />
       </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label htmlFor="heure-debut" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+            Heure de début
+          </label>
+          <input
+            id="heure-debut"
+            type="time"
+            value={heureDebut}
+            onChange={(event) => setHeureDebut(event.target.value)}
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-sky-500"
+          />
+        </div>
+        <div>
+          <label htmlFor="heure-fin" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+            Heure de fin
+          </label>
+          <input
+            id="heure-fin"
+            type="time"
+            value={heureFin}
+            onChange={(event) => setHeureFin(event.target.value)}
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-sky-500"
+          />
+        </div>
+      </div>
       <div>
         <label htmlFor="frais-route" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
           Frais de route (FCFA)
@@ -178,6 +213,8 @@ function EditCycleForm({ cycle, onDone }: { cycle: CycleCamion; onDone: () => vo
   const queryClient = useQueryClient()
   const [dateDebut, setDateDebut] = useState(cycle.date_debut)
   const [dateFin, setDateFin] = useState(cycle.date_fin ?? '')
+  const [heureDebut, setHeureDebut] = useState(cycle.heure_debut?.slice(0, 5) ?? '')
+  const [heureFin, setHeureFin] = useState(cycle.heure_fin?.slice(0, 5) ?? '')
   const [fraisRoute, setFraisRoute] = useState(cycle.frais_route?.toString() ?? '')
   const [error, setError] = useState<string | null>(null)
 
@@ -186,6 +223,8 @@ function EditCycleForm({ cycle, onDone }: { cycle: CycleCamion; onDone: () => vo
       const response = await api.put(`/cycles/${cycle.id}`, {
         date_debut: dateDebut,
         date_fin: dateFin || null,
+        heure_debut: heureDebut || null,
+        heure_fin: heureFin || null,
         frais_route: fraisRoute || 0,
       })
       return response.data
@@ -231,6 +270,32 @@ function EditCycleForm({ cycle, onDone }: { cycle: CycleCamion; onDone: () => vo
           onChange={(event) => setDateFin(event.target.value)}
           className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-sky-500"
         />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label htmlFor="edit-heure-debut" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+            Heure de début
+          </label>
+          <input
+            id="edit-heure-debut"
+            type="time"
+            value={heureDebut}
+            onChange={(event) => setHeureDebut(event.target.value)}
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-sky-500"
+          />
+        </div>
+        <div>
+          <label htmlFor="edit-heure-fin" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+            Heure de fin
+          </label>
+          <input
+            id="edit-heure-fin"
+            type="time"
+            value={heureFin}
+            onChange={(event) => setHeureFin(event.target.value)}
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-sky-500"
+          />
+        </div>
       </div>
       <div>
         <label htmlFor="edit-frais-route" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
